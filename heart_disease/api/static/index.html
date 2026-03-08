@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heart Disease Prediction API</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h2 {
+            color: #34495e;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        button {
+            background: #3498db;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #2980b9;
+        }
+        
+        button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+        
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            display: none;
+        }
+        
+        .result.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .result.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .result.positive {
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #856404;
+        }
+        
+        .result.negative {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+
+        .prediction-summary {
+            display: grid;
+            gap: 8px;
+        }
+
+        .prediction-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        .prediction-bar {
+            width: 100%;
+            height: 10px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .prediction-bar-fill {
+            height: 100%;
+            border-radius: 999px;
+            background: currentColor;
+        }
+
+        .prediction-note {
+            font-size: 0.92rem;
+            opacity: 0.9;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0 16px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+
+        .checkbox-group label {
+            margin: 0;
+        }
+        
+        .loading {
+            display: inline-block;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🫀 Heart Disease Prediction API</h1>
+        
+        <!-- Prediction Form -->
+        <div class="section">
+            <h2>Patient Prediction</h2>
+            <form id="predictForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="age">Age (years)</label>
+                        <input type="number" id="age" name="Age" required min="1" max="120" value="55">
+                    </div>
+                    <div class="form-group">
+                        <label for="sex">Sex</label>
+                        <select id="sex" name="Sex" required>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="chestPain">Chest Pain Type (1-4)</label>
+                        <input type="number" id="chestPain" name="Chest pain type" required min="1" max="4" value="2">
+                    </div>
+                    <div class="form-group">
+                        <label for="bp">Blood Pressure (mmHg)</label>
+                        <input type="number" id="bp" name="BP" required min="50" max="250" value="130">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="cholesterol">Cholesterol (mg/dL)</label>
+                        <input type="number" id="cholesterol" name="Cholesterol" required min="100" max="600" value="240">
+                    </div>
+                    <div class="form-group">
+                        <label for="fbs">FBS over 120 mg/dL</label>
+                        <select id="fbs" name="FBS over 120" required>
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ekg">EKG Results (0-2)</label>
+                        <input type="number" id="ekg" name="EKG results" required min="0" max="2" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="maxHr">Max Heart Rate (bpm)</label>
+                        <input type="number" id="maxHr" name="Max HR" required min="60" max="220" value="150">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="angina">Exercise Angina</label>
+                        <select id="angina" name="Exercise angina" required>
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="stDepression">ST Depression</label>
+                        <input type="number" id="stDepression" name="ST depression" required min="0" max="10" step="0.1" value="1.5">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="slope">Slope of ST (1-3)</label>
+                        <input type="number" id="slope" name="Slope of ST" required min="1" max="3" value="2">
+                    </div>
+                    <div class="form-group">
+                        <label for="vessels">Number of Vessels Fluro (0-3)</label>
+                        <input type="number" id="vessels" name="Number of vessels fluro" required min="0" max="3" value="0">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="thallium">Thallium (3-7)</label>
+                    <input type="number" id="thallium" name="Thallium" required min="3" max="7" value="3">
+                </div>
+                
+                <button type="submit" id="predictBtn">Predict</button>
+                
+                <div id="predictResult" class="result"></div>
+            </form>
+        </div>
+        
+        <!-- Retrain Form -->
+        <div class="section">
+            <h2>Model Retraining</h2>
+            <form id="retrainForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="nIter">Number of Iterations</label>
+                        <input type="number" id="nIter" name="n_iter" required min="1" value="20">
+                    </div>
+                    <div class="form-group">
+                        <label for="cvSplits">CV Splits</label>
+                        <input type="number" id="cvSplits" name="cv_splits" required min="2" value="5">
+                    </div>
+                </div>
+
+                <div class="checkbox-group">
+                    <input type="checkbox" id="forceReplacement" name="force_replacement">
+                    <label for="forceReplacement">Force replacement if model does not outperform current active model</label>
+                </div>
+                
+                <button type="submit" id="retrainBtn">Start Retraining</button>
+                
+                <div id="retrainResult" class="result"></div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        // Prediction Form Handler
+        document.getElementById('predictForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const predictBtn = document.getElementById('predictBtn');
+            const resultDiv = document.getElementById('predictResult');
+            
+            predictBtn.disabled = true;
+            predictBtn.textContent = 'Predicting...';
+            resultDiv.style.display = 'none';
+            
+            try {
+                const formData = new FormData(e.target);
+                const patientData = {
+                    Age: parseInt(formData.get('Age')),
+                    Sex: formData.get('Sex'),
+                    'Chest pain type': parseInt(formData.get('Chest pain type')),
+                    BP: parseInt(formData.get('BP')),
+                    Cholesterol: parseInt(formData.get('Cholesterol')),
+                    'FBS over 120': formData.get('FBS over 120') === 'true',
+                    'EKG results': parseInt(formData.get('EKG results')),
+                    'Max HR': parseInt(formData.get('Max HR')),
+                    'Exercise angina': formData.get('Exercise angina'),
+                    'ST depression': parseFloat(formData.get('ST depression')),
+                    'Slope of ST': parseInt(formData.get('Slope of ST')),
+                    'Number of vessels fluro': parseInt(formData.get('Number of vessels fluro')),
+                    Thallium: parseInt(formData.get('Thallium'))
+                };
+                
+                const response = await fetch('/api/v1/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        patient_data: [patientData]
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                const prediction = data.predictions[0];
+                const probability = Number(prediction.probability);
+                const percentage = Math.round(probability * 100);
+
+                let riskLevel = 'Very Low &lt; 20%';
+                if (percentage >= 80) {
+                    riskLevel = 'Very High &ge; 80%';
+                } else if (percentage >= 60) {
+                    riskLevel = 'High &ge; 60%';
+                } else if (percentage >= 40) {
+                    riskLevel = 'Moderate &ge; 40%';
+                } else if (percentage >= 20) {
+                    riskLevel = 'Low &ge; 20%';
+                }
+
+                const isHighRisk = percentage >= 60;
+
+                resultDiv.className = 'result ' + (isHighRisk ? 'positive' : 'negative');
+                resultDiv.innerHTML = `
+                    <div class="prediction-summary">
+                        <div><strong>Prediction</strong></div>
+                        <div class="prediction-value">${percentage}%</div>
+                        <div class="prediction-bar">
+                            <div class="prediction-bar-fill" style="width: ${percentage}%"></div>
+                        </div>
+                        <div class="prediction-note">Risk level: <strong>${riskLevel}</strong></div>
+                    </div>
+                `;
+                resultDiv.style.display = 'block';
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+                resultDiv.style.display = 'block';
+            } finally {
+                predictBtn.disabled = false;
+                predictBtn.textContent = 'Predict';
+            }
+        });
+        
+        // Retrain Form Handler
+        document.getElementById('retrainForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const retrainBtn = document.getElementById('retrainBtn');
+            const resultDiv = document.getElementById('retrainResult');
+            
+            retrainBtn.disabled = true;
+            retrainBtn.textContent = 'Starting Retraining...';
+            resultDiv.style.display = 'none';
+            
+            try {
+                const formData = new FormData(e.target);
+                const retrainData = {
+                    n_iter: parseInt(formData.get('n_iter')),
+                    cv_splits: parseInt(formData.get('cv_splits')),
+                    force_replacement: document.getElementById('forceReplacement').checked
+                };
+                
+                const response = await fetch('/api/v1/retrain', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(retrainData)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = `
+                    <strong>Retraining Status:</strong> ${data.status}<br>
+                    <strong>Model URI:</strong> ${data.model_uri}<br>
+                    ${data.cv_mean_auc ? `<strong>CV Mean AUC:</strong> ${data.cv_mean_auc}<br>` : ''}
+                    ${data.message ? `<strong>Message:</strong> ${data.message}` : ''}
+                `;
+                resultDiv.style.display = 'block';
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+                resultDiv.style.display = 'block';
+            } finally {
+                retrainBtn.disabled = false;
+                retrainBtn.textContent = 'Start Retraining';
+            }
+        });
+    </script>
+</body>
+</html>

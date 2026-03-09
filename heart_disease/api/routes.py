@@ -21,7 +21,7 @@ router = APIRouter()
 def _request_to_dataframe(patient_data: list[PatientData]):
     """Convert list of PatientData to a DataFrame for model prediction."""
 
-    data = [patient.dict(by_alias=True) for patient in patient_data]
+    data = [patient.model_dump(by_alias=True) for patient in patient_data]
     df = pd.DataFrame(data)
     return df
 

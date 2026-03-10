@@ -1,0 +1,146 @@
+﻿# Production input data schema
+# Defines the expected format for inference inputs.
+# Used for validation via pandera (DataFrameSchema built programmatically from this file).
+#
+# Notes:
+#   - 'Heart Disease' is the prediction TARGET and must NOT be present in
+#     production inference payloads. It is documented here for reference only.
+#   - 'id' is a row identifier and is dropped before modelling.
+#   - Categorical columns are represented as their cleaned string form
+#     (e.g. Sex: male/female, not 0/1) as produced by the EDA pipeline.
+
+schema_type: DataFrameSchema
+version: 0.1.0
+
+columns:
+
+  id:
+    title: "Row identifier"
+    dtype: int64
+    nullable: false
+    checks:
+      greater_than_or_equal_to: 0
+    description: "Unique integer identifier for each patient record. Dropped before any modelling step."
+
+  Age:
+    title: "Age (years)"
+    dtype: int64
+    nullable: false
+    checks:
+      in_range:
+        min_value: 1
+        max_value: 120
+    description: "Patient age in years. Observed range in training data: 29 to 77."
+
+  Sex:
+    title: "Biological sex"
+    dtype: str
+    nullable: false
+    checks:
+      isin: ["male", "female"]
+    description: "Patient sex as a string category. Values are cleaned labels (male/female); raw data encodes this as 1=male, 0=female."
+
+  Chest pain type:
+    title: "Chest pain type"
+    dtype: int64
+    nullable: false
+    checks:
+      isin: [1, 2, 3, 4]
+    description: "Clinical chest pain classification. 1=typical angina, 2=atypical angina, 3=non-anginal pain, 4=asymptomatic."
+
+  BP:
+    title: "Resting blood pressure (mmHg)"
+    dtype: int64
+    nullable: false
+    checks:
+      in_range:
+        min_value: 50
+        max_value: 300
+    description: "Resting blood pressure in mmHg on hospital admission. Observed range in training data: 94 to 200."
+
+  Cholesterol:
+    title: "Serum cholesterol (mg/dL)"
+    dtype: int64
+    nullable: false
+    checks:
+      in_range:
+        min_value: 100
+        max_value: 700
+    description: "Serum cholesterol in mg/dL. Observed range in training data: 126 to 564."
+
+  FBS over 120:
+    title: "Fasting blood sugar > 120 mg/dL"
+    dtype: bool
+    nullable: false
+    description: "True if fasting blood sugar > 120 mg/dL; False otherwise. Raw data encodes this as 1/0."
+
+  EKG results:
+    title: "Resting ECG results"
+    dtype: int64
+    nullable: false
+    checks:
+      isin: [0, 1, 2]
+    description: "Resting electrocardiographic results. 0=normal, 1=ST-T wave abnormality, 2=left ventricular hypertrophy."
+
+  Max HR:
+    title: "Maximum heart rate achieved (bpm)"
+    dtype: int64
+    nullable: false
+    checks:
+      in_range:
+        min_value: 40
+        max_value: 250
+    description: "Maximum heart rate achieved during exercise test (bpm). Observed range in training data: 71 to 202."
+
+  Exercise angina:
+    title: "Exercise-induced angina"
+    dtype: str
+    nullable: false
+    checks:
+      isin: ["yes", "no"]
+    description: "Whether the patient experienced exercise-induced angina. Values are cleaned string labels (yes/no); raw data encodes this as 1/0."
+
+  ST depression:
+    title: "ST depression (exercise vs. rest)"
+    dtype: float64
+    nullable: false
+    checks:
+      in_range:
+        min_value: 0.0
+        max_value: 10.0
+    description: "ST depression induced by exercise relative to rest. Observed range in training data: 0.0 to 6.2."
+
+  Slope of ST:
+    title: "Slope of peak exercise ST segment"
+    dtype: int64
+    nullable: false
+    checks:
+      isin: [1, 2, 3]
+    description: "Slope of peak exercise ST segment. 1=upsloping, 2=flat, 3=downsloping."
+
+  Number of vessels fluro:
+    title: "Number of major vessels coloured by fluoroscopy"
+    dtype: int64
+    nullable: false
+    checks:
+      isin: [0, 1, 2, 3]
+    description: "Number of major vessels (0-3) coloured by fluoroscopy."
+
+  Thallium:
+    title: "Thallium stress test result"
+    dtype: int64
+    nullable: false
+    checks:
+      isin: [3, 6, 7]
+    description: "Thallium stress test result. 3=normal, 6=fixed defect, 7=reversable defect."
+
+# ---------------------------------------------------------------------------
+# TARGET COLUMN - present in training data only, NOT in production inference input
+# ---------------------------------------------------------------------------
+  Heart Disease:
+    title: "Heart disease diagnosis (target)"
+    dtype: str
+    nullable: false
+    checks:
+      isin: ["Absence", "Presence"]
+    description: "Target label. Presence=positive case, Absence=negative case. Must be excluded from production inference payloads."

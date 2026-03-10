@@ -13,6 +13,7 @@ heart_disease/
 │   ├── api/                 # API FastAPI
 │   └── pipelines/           
 │       ├── train.py         # TrainingPipeline class
+│       ├── predict.py       # PredictionPipeline class
 │       └── components/      
 │           ├── dataset.py   # Carregamento e validação de dados
 │           └── features.py  # Transformação de features
@@ -156,6 +157,167 @@ O modelo treinado é automaticamente promovido para "active" se:
 2. **Forçar substituição**: `force_replace=True`
 
 O modelo com alias "active" é usado pela API de produção para inferência.
+
+## Pipeline de Predição
+
+A pipeline de predição carrega o modelo ativo do MLflow e faz predições para novos pacientes. Reutiliza os componentes de validação e transformação de dados.
+
+### Uso Básico
+
+**Predições a partir de DataFrame:**
+
+```python
+from heart_disease.pipelines.predict import PredictionPipeline
+import pandas as pd
+
+# Criar dados de exemplo
+patients = pd.DataFrame({
+    'id': [1, 2],
+    'Age': [55, 62],
+    'Sex': [1, 0],  # 1=male, 0=female
+    'Chest pain type': [2, 3],
+    'BP': [130, 140],
+    'Cholesterol': [240, 260],
+    'FBS over 120': [1, 1],
+    'EKG results': [0, 1],
+    'Max HR': [150, 135],
+    'Exercise angina': [0, 1],
+    'ST depression': [1.5, 2.0],
+    'Slope of ST': [2, 1],
+    'Number of vessels fluro': [1, 2],
+    'Thallium': [6, 7]
+})
+
+# Instanciar e carregar modelo
+pipeline = PredictionPipeline()
+pipeline.load_model()
+
+# Fazer predições
+results = pipeline.predict(patients)
+print(results[['id', 'Age', 'prediction']])
+```
+
+**Predições com probabilidades:**
+
+```python
+# Incluir probabilidades das classes
+results = pipeline.predict(patients, return_proba=True)
+print(results[['id', 'prediction', 'probability_Presence', 'probability_Absence']])
+```
+
+**Predições a partir de arquivo CSV:**
+
+```python
+# Carregar e predizer de uma vez
+results = pipeline.predict_from_file(
+    'data/new_patients.csv',
+    return_proba=True
+)
+```
+
+### Função de Conveniência
+
+Para predições rápidas sem instanciar a classe:
+
+```python
+from heart_disease.pipelines.predict import predict_patients
+
+# De DataFrame
+results = predict_patients(patients_df, return_proba=True)
+
+# De arquivo CSV
+results = predict_patients('data/new_patients.csv', return_proba=True)
+
+# Sem incluir dados de entrada
+results = predict_patients(patients_df, include_input=False)
+
+# Usar modelo específico
+results = predict_patients(
+    patients_df,
+    model_name='heart_disease_model',
+    model_alias='champion'
+)
+```
+
+### Parâmetros da Pipeline
+
+**`PredictionPipeline`:**
+- `model_name`: Nome do modelo no MLflow (default: do constants.py)
+- `model_alias`: Alias da versão (default: "active")
+
+**Método `predict()`:**
+- `data`: DataFrame com dados dos pacientes
+- `return_proba`: Incluir probabilidades (default: False)
+- `include_input`: Incluir colunas originais (default: True)
+
+**Método `predict_from_file()`:**
+- `file_path`: Caminho para arquivo CSV
+- `return_proba`: Incluir probabilidades (default: False)
+- `include_input`: Incluir colunas originais (default: True)
+
+### Validação Automática
+
+A pipeline aplica automaticamente:
+
+1. **Validação de schema**: Verifica se todas as features estão presentes e válidas
+2. **Modo inference**: Garante que o target não está presente nos dados
+3. **Transformação**: Aplica os mesmos mapeamentos binários e casting categórico do treinamento
+4. **Preparação**: Remove colunas desnecessárias (ID) antes da predição
+
+### Formato de Saída
+
+**Sem probabilidades (`return_proba=False`):**
+```python
+   id  Age  Sex  ...  prediction
+0   1   55    1  ...    Presence
+1   2   62    0  ...    Absence
+```
+
+**Com probabilidades (`return_proba=True`):**
+```python
+   id  Age  Sex  ...  prediction  probability_Absence  probability_Presence
+0   1   55    1  ...    Presence              0.35                   0.65
+1   2   62    0  ...    Absence               0.72                   0.28
+```
+
+### Tratamento de Erros
+
+```python
+from heart_disease.pipelines.predict import PredictionPipeline
+
+pipeline = PredictionPipeline()
+
+try:
+    # Erro: modelo não carregado
+    results = pipeline.predict(data)
+except ValueError as e:
+    print(f"Erro: {e}")
+    pipeline.load_model()  # Carregar antes
+
+try:
+    # Erro: dados contêm target
+    results = pipeline.predict_from_file('data/with_target.csv')
+except ValueError as e:
+    print(f"Erro: {e}")
+
+try:
+    # Erro: modelo não existe
+    pipeline = PredictionPipeline(model_alias='nonexistent')
+    pipeline.load_model()
+except ValueError as e:
+    print(f"Erro: {e}")
+```
+
+### Reutilização de Componentes
+
+A `PredictionPipeline` reutiliza os mesmos componentes do treinamento:
+
+- **`DataLoader`**: Carregamento de CSV
+- **`DataValidator`**: Validação em modo inference
+- **`DataTransformer`**: Transformação de features
+- **MLflow**: Carregamento do modelo ativo
+
+Isso garante **consistência** entre treinamento e inferência.
 
 ## Testes
 

@@ -2,7 +2,7 @@ import logging
 
 import pandas as pd
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, HTTPException
 
 from heart_disease.api.schemas import (
     PatientData,
@@ -13,16 +13,33 @@ from heart_disease.api.schemas import (
     RetrainResponse,
 )
 
+from heart_disease.pipelines.predict import predict_patients
+from heart_disease.pipelines.train import train_pipeline
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 # === Auxiliary functions ===
-def _request_to_dataframe(patient_data: list[PatientData]):
-    """Convert list of PatientData to a DataFrame for model prediction."""
-
+def _request_to_dataframe(patient_data: list[PatientData]) -> pd.DataFrame:
+    """Convert list of PatientData to a DataFrame for model prediction.
+    
+    The API schema uses a slightly different format than the raw data:
+    - FBS over 120: bool → needs conversion to "true"/"false" strings
+    - Sex and Exercise angina are already strings
+    
+    This function creates a DataFrame compatible with the prediction pipeline.
+    """
     data = [patient.model_dump(by_alias=True) for patient in patient_data]
     df = pd.DataFrame(data)
+    
+    # Add ID column (required by pipeline, will be dropped during transformation)
+    df.insert(0, 'id', range(len(df)))
+    
+    # Convert FBS over 120 from bool to string format expected by pipeline
+    if 'FBS over 120' in df.columns:
+        df['FBS over 120'] = df['FBS over 120'].map({True: 'true', False: 'false'})
+    
     return df
 
 # === API endpoints ===
@@ -32,21 +49,38 @@ def _request_to_dataframe(patient_data: list[PatientData]):
         tags=["Prediction"],
         summary="Predict heart disease based on patient data",)
 async def predict(body: PredictionRequest, request: Request) -> PredictionResponse:
-    """Endpoint to predict heart disease based on patient data."""
+    """Endpoint to predict heart disease based on patient data.
+    
+    Uses the currently active model from MLflow to make predictions.
+    Returns probability of heart disease presence for each patient.
+    """
     logger.info(f"Received prediction request from {request.client.host} with {len(body.patient_data)} patients")
     
-    # Placeholder for actual prediction logic
-    df = _request_to_dataframe(body.patient_data)
-    logger.debug(f"Converted request data to DataFrame:\n{df.head()}")
-    # Here you would load your model and make predictions using the DataFrame
-    # For demonstration, we'll return dummy predictions
-    predictions = []
-    for i, patient in enumerate(body.patient_data):
-        predictions.append(PredictionResult(
-            patient_id=i,
-            probability=0.5  # Dummy probability, replace with actual model prediction
-        ))
-    return PredictionResponse(predictions=predictions)
+    try:
+        # Convert request to DataFrame
+        df = _request_to_dataframe(body.patient_data)
+        logger.debug(f"Converted request data to DataFrame with shape {df.shape}")
+        
+        # Make predictions using active model
+        results = predict_patients(df, return_proba=True, include_input=False)
+        logger.info(f"Predictions completed successfully for {len(results)} patients")
+        
+        # Convert pipeline results to API response format
+        predictions = []
+        for idx, row in results.iterrows():
+            predictions.append(PredictionResult(
+                patient_id=int(idx),
+                probability=float(row['probability_Presence'])
+            ))
+        
+        return PredictionResponse(predictions=predictions)
+    
+    except ValueError as e:
+        logger.error(f"Prediction failed: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error during prediction: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error during prediction")
 
 @router.post(
         "/retrain",
@@ -54,15 +88,60 @@ async def predict(body: PredictionRequest, request: Request) -> PredictionRespon
         tags=["Retraining"],
         summary="Trigger model retraining with specified configuration",)
 async def retrain(body: RetrainRequest, request: Request) -> RetrainResponse:
-    """Endpoint to trigger model retraining with specified configuration."""
-    logger.info(f"Received retrain request from {request.client.host} with n_iter={body.n_iter} and cv_splits={body.cv_splits}")
+    """Endpoint to trigger model retraining with specified configuration.
     
-    # Placeholder for actual retraining logic
-    # Here you would implement the logic to retrain your model using the provided configuration
-    # For demonstration, we'll return a dummy response
-    return RetrainResponse(
-        status="Retraining started",
-        model_uri="s3://your-bucket/path/to/new/model.pkl"
+    Trains a new model using the configured training data and hyperparameter search.
+    The new model is automatically promoted to 'active' if it outperforms the current
+    active model or if force_replacement=True.
+    """
+    logger.info(
+        f"Received retrain request from {request.client.host} "
+        f"with n_iter={body.n_iter}, cv_splits={body.cv_splits}, "
+        f"force_replacement={body.force_replacement}"
     )
+    
+    try:
+        # Run training pipeline
+        results = train_pipeline(
+            n_iter=body.n_iter,
+            cv_folds=body.cv_splits,
+            force_replace=body.force_replacement
+        )
+        
+        logger.info(
+            f"Training completed. Run ID: {results['run_id']}, "
+            f"Promoted: {results['promoted']}"
+        )
+        
+        # Build response
+        cv_auc = results['metrics'].get('cv_roc_auc')
+        test_auc = results['metrics'].get('test_roc_auc')
+        
+        if results['promoted']:
+            status = "success"
+            message = (
+                f"Model trained and promoted to 'active'. "
+                f"CV ROC-AUC: {cv_auc:.4f}, Test ROC-AUC: {test_auc:.4f}"
+            )
+        else:
+            status = "success"
+            message = (
+                f"Model trained but NOT promoted (existing model performs better). "
+                f"CV ROC-AUC: {cv_auc:.4f}, Test ROC-AUC: {test_auc:.4f}"
+            )
+        
+        return RetrainResponse(
+            status=status,
+            model_uri=f"models:/{results['run_id']}",
+            cv_mean_auc=cv_auc,
+            message=message
+        )
+    
+    except Exception as e:
+        logger.error(f"Training failed: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Model training failed: {str(e)}"
+        )
 
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field, field_validator
 
 # Patient data schema
@@ -35,12 +37,44 @@ class PredictionRequest(BaseModel):
 class PredictionResult(BaseModel):
     """Prediction for a single patient."""
     patient_id: int = Field(..., description="ID of the patient")
+    prediction: str = Field(..., description="Predicted class label")
     probability: float = Field(..., description="Predicted probability of heart disease", ge=0.0, le=1.0) 
 
 # Prediction response schema
 class PredictionResponse(BaseModel):
     """Schema for prediction response containing results for multiple patients."""
+    model_version: str = Field(..., description="Version of the model used for prediction")
+    model_uri: str = Field(..., description="MLflow URI of the model used for prediction")
     predictions: list[PredictionResult] = Field(..., description="List of prediction results for each patient")
+
+
+class PredictionHistoryEntry(BaseModel):
+    """Persisted prediction event returned by the history endpoint."""
+    id: int
+    created_at: str
+    request_id: str
+    patient_index: int
+    model_version: str
+    model_uri: str
+    input_data: dict[str, Any]
+    output_data: dict[str, Any]
+
+
+class PredictionModelOption(BaseModel):
+    """Model metadata available for filtering prediction history."""
+    model_version: str
+    model_uri: str
+    prediction_count: int = 0
+    latest_prediction_at: str | None = None
+    is_active: bool = False
+
+
+class PredictionHistoryResponse(BaseModel):
+    """Response payload for prediction history listing."""
+    active_model_version: str | None = None
+    active_model_uri: str | None = None
+    models: list[PredictionModelOption]
+    predictions: list[PredictionHistoryEntry]
 
 class RetrainRequest(BaseModel):
     """Configuration for the training pipeline."""

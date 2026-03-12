@@ -10,118 +10,154 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             line-height: 1.6;
-            color: #333;
-            background: #f5f5f5;
+            color: #243043;
+            background: linear-gradient(180deg, #eef3f8 0%, #f8fafc 100%);
             padding: 20px;
         }
-        
+
         .container {
-            max-width: 900px;
+            max-width: 1120px;
             margin: 0 auto;
         }
-        
+
         h1 {
-            color: #2c3e50;
+            color: #1f3146;
             margin-bottom: 30px;
             text-align: center;
         }
-        
+
         .section {
             background: white;
-            border-radius: 8px;
+            border-radius: 10px;
             padding: 25px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 25px rgba(31, 49, 70, 0.08);
         }
-        
+
         h2 {
-            color: #34495e;
+            color: #22384f;
             margin-bottom: 20px;
-            font-size: 1.5em;
+            font-size: 1.35rem;
             border-bottom: 2px solid #3498db;
             padding-bottom: 10px;
         }
-        
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+        .model-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: #e8f4fd;
+            color: #1d5f8f;
+            font-size: 0.92rem;
+            font-weight: 600;
+        }
+
         .form-group {
             margin-bottom: 15px;
         }
-        
+
         label {
             display: block;
             margin-bottom: 5px;
-            color: #555;
+            color: #42576d;
             font-weight: 500;
         }
-        
+
         input, select {
             width: 100%;
             padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            border: 1px solid #d3dce6;
+            border-radius: 6px;
             font-size: 14px;
+            background: white;
         }
-        
+
         input:focus, select:focus {
             outline: none;
             border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
         }
-        
+
         .form-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 15px;
         }
-        
+
+        .actions-row {
+            display: flex;
+            align-items: end;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .actions-row .form-group {
+            flex: 1;
+            min-width: 180px;
+            margin-bottom: 0;
+        }
+
         button {
             background: #3498db;
             color: white;
             padding: 12px 24px;
             border: none;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 16px;
-            font-weight: 500;
-            transition: background 0.3s;
+            font-size: 15px;
+            font-weight: 600;
+            transition: background 0.25s;
         }
-        
+
         button:hover {
-            background: #2980b9;
+            background: #277db5;
         }
-        
+
         button:disabled {
             background: #bdc3c7;
             cursor: not-allowed;
         }
-        
+
         .result {
             margin-top: 20px;
             padding: 15px;
-            border-radius: 4px;
+            border-radius: 6px;
             display: none;
         }
-        
+
         .result.success {
             background: #d4edda;
             border: 1px solid #c3e6cb;
             color: #155724;
         }
-        
+
         .result.error {
             background: #f8d7da;
             border: 1px solid #f5c6cb;
             color: #721c24;
         }
-        
+
         .result.positive {
             background: #fff3cd;
             border: 1px solid #ffeeba;
             color: #856404;
         }
-        
+
         .result.negative {
             background: #d1ecf1;
             border: 1px solid #bee5eb;
@@ -171,20 +207,72 @@
         .checkbox-group label {
             margin: 0;
         }
-        
-        .loading {
-            display: inline-block;
-            margin-left: 10px;
+
+        .table-wrapper {
+            overflow-x: auto;
+            border: 1px solid #e1e7ef;
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 920px;
+        }
+
+        th, td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #e9eef4;
+            text-align: left;
+            font-size: 0.92rem;
+            vertical-align: top;
+        }
+
+        th {
+            background: #f4f8fb;
+            color: #32485f;
+            font-weight: 700;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #fbfdff;
+        }
+
+        .history-meta {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+            color: #607387;
+            margin-bottom: 16px;
+            font-size: 0.92rem;
+        }
+
+        .muted {
+            color: #74879a;
+        }
+
+        @media (max-width: 800px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .actions-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🫀 Heart Disease Prediction API</h1>
-        
-        <!-- Prediction Form -->
+        <h1>Heart Disease Prediction API</h1>
+
         <div class="section">
-            <h2>Patient Prediction</h2>
+            <div class="section-header">
+                <h2>Patient Prediction</h2>
+                <div id="activeModelBadge" class="model-badge">Active model: loading...</div>
+            </div>
             <form id="predictForm">
                 <div class="form-row">
                     <div class="form-group">
@@ -199,7 +287,7 @@
                         </select>
                     </div>
                 </div>
-                
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="chestPain">Chest Pain Type (1-4)</label>
@@ -210,7 +298,7 @@
                         <input type="number" id="bp" name="BP" required min="50" max="250" value="130">
                     </div>
                 </div>
-                
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="cholesterol">Cholesterol (mg/dL)</label>
@@ -224,7 +312,7 @@
                         </select>
                     </div>
                 </div>
-                
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="ekg">EKG Results (0-2)</label>
@@ -235,7 +323,7 @@
                         <input type="number" id="maxHr" name="Max HR" required min="60" max="220" value="150">
                     </div>
                 </div>
-                
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="angina">Exercise Angina</label>
@@ -249,7 +337,7 @@
                         <input type="number" id="stDepression" name="ST depression" required min="0" max="10" step="0.1" value="1.5">
                     </div>
                 </div>
-                
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="slope">Slope of ST (1-3)</label>
@@ -260,23 +348,68 @@
                         <input type="number" id="vessels" name="Number of vessels fluro" required min="0" max="3" value="0">
                     </div>
                 </div>
-                
+
                 <div class="form-group">
-                    <label for="thallium">Thallium (3-7)</label>
+                    <label for="thallium">Thallium</label>
                     <select id="thallium" name="Thallium" required>
                         <option value="3">Normal (3)</option>
                         <option value="6">Fixed Defect (6)</option>
                         <option value="7">Reversible Defect (7)</option>
                     </select>
                 </div>
-                
+
                 <button type="submit" id="predictBtn">Predict</button>
-                
                 <div id="predictResult" class="result"></div>
             </form>
         </div>
-        
-        <!-- Retrain Form -->
+
+        <div class="section">
+            <h2>Populate History With Random Predictions</h2>
+            <form id="randomBatchForm">
+                <div class="actions-row">
+                    <div class="form-group">
+                        <label for="randomCount">Number of random patients</label>
+                        <input type="number" id="randomCount" name="randomCount" min="1" max="250" value="10" required>
+                    </div>
+                    <button type="submit" id="randomBatchBtn">Generate And Predict</button>
+                </div>
+                <div id="randomBatchResult" class="result"></div>
+            </form>
+        </div>
+
+        <div class="section">
+            <div class="section-header">
+                <h2>Prediction History</h2>
+                <div class="form-group" style="min-width: 260px; margin-bottom: 0;">
+                    <label for="modelFilter">Filter by model</label>
+                    <select id="modelFilter"></select>
+                </div>
+            </div>
+            <div class="history-meta">
+                <span id="historySummary" class="muted">Loading history...</span>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Created</th>
+                            <th>Model</th>
+                            <th>Patient</th>
+                            <th>Prediction</th>
+                            <th>Probability</th>
+                            <th>Age</th>
+                            <th>BP</th>
+                            <th>Cholesterol</th>
+                            <th>Input Snapshot</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <tr><td colspan="9" class="muted">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="section">
             <h2>Model Retraining</h2>
             <form id="retrainForm">
@@ -295,89 +428,199 @@
                     <input type="checkbox" id="forceReplacement" name="force_replacement">
                     <label for="forceReplacement">Force replacement if model does not outperform current active model</label>
                 </div>
-                
+
                 <button type="submit" id="retrainBtn">Start Retraining</button>
-                
                 <div id="retrainResult" class="result"></div>
             </form>
         </div>
     </div>
-    
+
     <script>
-        // Prediction Form Handler
-        document.getElementById('predictForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
+        const activeModelBadge = document.getElementById('activeModelBadge');
+        const modelFilter = document.getElementById('modelFilter');
+        const historySummary = document.getElementById('historySummary');
+        const historyTableBody = document.getElementById('historyTableBody');
+        let currentActiveModelUri = null;
+
+        function randomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function randomFloat(min, max, decimals = 1) {
+            const multiplier = 10 ** decimals;
+            return Math.round((Math.random() * (max - min) + min) * multiplier) / multiplier;
+        }
+
+        function randomChoice(values) {
+            return values[randomInt(0, values.length - 1)];
+        }
+
+        function buildPatientDataFromForm(form) {
+            const formData = new FormData(form);
+            return {
+                Age: parseInt(formData.get('Age')),
+                Sex: parseInt(formData.get('Sex')),
+                'Chest pain type': parseInt(formData.get('Chest pain type')),
+                BP: parseInt(formData.get('BP')),
+                Cholesterol: parseInt(formData.get('Cholesterol')),
+                'FBS over 120': formData.get('FBS over 120') === 'true',
+                'EKG results': parseInt(formData.get('EKG results')),
+                'Max HR': parseInt(formData.get('Max HR')),
+                'Exercise angina': parseInt(formData.get('Exercise angina')),
+                'ST depression': parseFloat(formData.get('ST depression')),
+                'Slope of ST': parseInt(formData.get('Slope of ST')),
+                'Number of vessels fluro': parseInt(formData.get('Number of vessels fluro')),
+                Thallium: parseInt(formData.get('Thallium')),
+            };
+        }
+
+        function buildRandomPatient() {
+            return {
+                Age: randomInt(29, 77),
+                Sex: randomChoice([0, 1]),
+                'Chest pain type': randomInt(1, 4),
+                BP: randomInt(94, 200),
+                Cholesterol: randomInt(126, 564),
+                'FBS over 120': randomChoice([true, false]),
+                'EKG results': randomInt(0, 2),
+                'Max HR': randomInt(71, 202),
+                'Exercise angina': randomChoice([0, 1]),
+                'ST depression': randomFloat(0, 6.2, 1),
+                'Slope of ST': randomInt(1, 3),
+                'Number of vessels fluro': randomInt(0, 3),
+                Thallium: randomChoice([3, 6, 7]),
+            };
+        }
+
+        async function postJson(url, payload) {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            return response.json();
+        }
+
+        async function getJson(url) {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        }
+
+        function renderActiveModel(version, uri) {
+            if (!version || !uri) {
+                activeModelBadge.textContent = 'Active model: unavailable';
+                return;
+            }
+            activeModelBadge.textContent = `Active model: v${version} | ${uri}`;
+        }
+
+        function renderModelFilter(models, activeModelVersion) {
+            const currentValue = modelFilter.value;
+            const options = ['<option value="">All models</option>'];
+
+            for (const model of models) {
+                const activeLabel = model.is_active ? ' (active)' : '';
+                options.push(`<option value="${model.model_version}">v${model.model_version}${activeLabel} - ${model.prediction_count} predictions</option>`);
+            }
+
+            modelFilter.innerHTML = options.join('');
+            if ([...modelFilter.options].some((option) => option.value === currentValue)) {
+                modelFilter.value = currentValue;
+            }
+
+            renderActiveModel(activeModelVersion, currentActiveModelUri);
+        }
+
+        function renderHistoryTable(predictions) {
+            if (!predictions.length) {
+                historyTableBody.innerHTML = '<tr><td colspan="9" class="muted">No persisted predictions for this filter.</td></tr>';
+                return;
+            }
+
+            historyTableBody.innerHTML = predictions.map((entry) => {
+                const output = entry.output_data;
+                const input = entry.input_data;
+                const percent = Math.round(Number(output.probability) * 100);
+                return `
+                    <tr>
+                        <td>${new Date(entry.created_at).toLocaleString()}</td>
+                        <td>v${entry.model_version}</td>
+                        <td>#${output.patient_id}</td>
+                        <td>${output.prediction}</td>
+                        <td>${percent}%</td>
+                        <td>${input.Age}</td>
+                        <td>${input.BP}</td>
+                        <td>${input.Cholesterol}</td>
+                        <td>Sex=${input.Sex}, Chest Pain=${input['Chest pain type']}, Thallium=${input.Thallium}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function loadHistory() {
+            const query = modelFilter.value ? `?model_version=${encodeURIComponent(modelFilter.value)}` : '';
+            const data = await getJson(`/api/v1/predictions/history${query}`);
+            currentActiveModelUri = data.active_model_uri;
+            renderModelFilter(data.models, data.active_model_version);
+            renderHistoryTable(data.predictions);
+            historySummary.textContent = `${data.predictions.length} persisted predictions loaded.`;
+        }
+
+        function renderPredictionResponse(resultDiv, response) {
+            const prediction = response.predictions[0];
+            const probability = Number(prediction.probability);
+            const percentage = Math.round(probability * 100);
+
+            let riskLevel = 'Very Low < 20%';
+            if (percentage >= 80) {
+                riskLevel = 'Very High >= 80%';
+            } else if (percentage >= 60) {
+                riskLevel = 'High >= 60%';
+            } else if (percentage >= 40) {
+                riskLevel = 'Moderate >= 40%';
+            } else if (percentage >= 20) {
+                riskLevel = 'Low >= 20%';
+            }
+
+            const isHighRisk = percentage >= 60;
+            resultDiv.className = 'result ' + (isHighRisk ? 'positive' : 'negative');
+            resultDiv.innerHTML = `
+                <div class="prediction-summary">
+                    <div><strong>Prediction</strong>: ${prediction.prediction}</div>
+                    <div><strong>Model</strong>: v${response.model_version}</div>
+                    <div class="prediction-value">${percentage}%</div>
+                    <div class="prediction-bar">
+                        <div class="prediction-bar-fill" style="width: ${percentage}%"></div>
+                    </div>
+                    <div class="prediction-note">Risk level: <strong>${riskLevel}</strong></div>
+                </div>
+            `;
+            resultDiv.style.display = 'block';
+        }
+
+        document.getElementById('predictForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+
             const predictBtn = document.getElementById('predictBtn');
             const resultDiv = document.getElementById('predictResult');
-            
+
             predictBtn.disabled = true;
             predictBtn.textContent = 'Predicting...';
             resultDiv.style.display = 'none';
-            
+
             try {
-                const formData = new FormData(e.target);
-                const patientData = {
-                    Age: parseInt(formData.get('Age')),
-                    Sex: parseInt(formData.get('Sex')),
-                    'Chest pain type': parseInt(formData.get('Chest pain type')),
-                    BP: parseInt(formData.get('BP')),
-                    Cholesterol: parseInt(formData.get('Cholesterol')),
-                    'FBS over 120': formData.get('FBS over 120') === 'true',
-                    'EKG results': parseInt(formData.get('EKG results')),
-                    'Max HR': parseInt(formData.get('Max HR')),
-                    'Exercise angina': parseInt(formData.get('Exercise angina')),
-                    'ST depression': parseFloat(formData.get('ST depression')),
-                    'Slope of ST': parseInt(formData.get('Slope of ST')),
-                    'Number of vessels fluro': parseInt(formData.get('Number of vessels fluro')),
-                    Thallium: parseInt(formData.get('Thallium'))
-                };
-                
-                const response = await fetch('/api/v1/predict', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        patient_data: [patientData]
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                const prediction = data.predictions[0];
-                const probability = Number(prediction.probability);
-                const percentage = Math.round(probability * 100);
-
-                let riskLevel = 'Very Low &lt; 20%';
-                if (percentage >= 80) {
-                    riskLevel = 'Very High &ge; 80%';
-                } else if (percentage >= 60) {
-                    riskLevel = 'High &ge; 60%';
-                } else if (percentage >= 40) {
-                    riskLevel = 'Moderate &ge; 40%';
-                } else if (percentage >= 20) {
-                    riskLevel = 'Low &ge; 20%';
-                }
-
-                const isHighRisk = percentage >= 60;
-
-                resultDiv.className = 'result ' + (isHighRisk ? 'positive' : 'negative');
-                resultDiv.innerHTML = `
-                    <div class="prediction-summary">
-                        <div><strong>Prediction</strong></div>
-                        <div class="prediction-value">${percentage}%</div>
-                        <div class="prediction-bar">
-                            <div class="prediction-bar-fill" style="width: ${percentage}%"></div>
-                        </div>
-                        <div class="prediction-note">Risk level: <strong>${riskLevel}</strong></div>
-                    </div>
-                `;
-                resultDiv.style.display = 'block';
-                
+                const patientData = buildPatientDataFromForm(event.target);
+                const response = await postJson('/api/v1/predict', { patient_data: [patientData] });
+                renderPredictionResponse(resultDiv, response);
+                await loadHistory();
             } catch (error) {
                 resultDiv.className = 'result error';
                 resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
@@ -387,40 +630,66 @@
                 predictBtn.textContent = 'Predict';
             }
         });
-        
-        // Retrain Form Handler
-        document.getElementById('retrainForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
+
+        document.getElementById('randomBatchForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const batchBtn = document.getElementById('randomBatchBtn');
+            const resultDiv = document.getElementById('randomBatchResult');
+            const count = parseInt(document.getElementById('randomCount').value);
+
+            batchBtn.disabled = true;
+            batchBtn.textContent = 'Generating...';
+            resultDiv.style.display = 'none';
+
+            try {
+                const patients = Array.from({ length: count }, () => buildRandomPatient());
+                const response = await postJson('/api/v1/predict', { patient_data: patients });
+                resultDiv.className = 'result success';
+                resultDiv.innerHTML = `
+                    <strong>Success:</strong> ${response.predictions.length} predictions generated using model v${response.model_version}.<br>
+                    <strong>Model URI:</strong> ${response.model_uri}
+                `;
+                resultDiv.style.display = 'block';
+                await loadHistory();
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+                resultDiv.style.display = 'block';
+            } finally {
+                batchBtn.disabled = false;
+                batchBtn.textContent = 'Generate And Predict';
+            }
+        });
+
+        document.getElementById('modelFilter').addEventListener('change', async () => {
+            try {
+                await loadHistory();
+            } catch (error) {
+                historySummary.textContent = `Failed to load history: ${error.message}`;
+            }
+        });
+
+        document.getElementById('retrainForm').addEventListener('submit', async (event) => {
+            event.preventDefault();
+
             const retrainBtn = document.getElementById('retrainBtn');
             const resultDiv = document.getElementById('retrainResult');
-            
+
             retrainBtn.disabled = true;
             retrainBtn.textContent = 'Starting Retraining...';
             resultDiv.style.display = 'none';
-            
+
             try {
-                const formData = new FormData(e.target);
+                const formData = new FormData(event.target);
                 const retrainData = {
                     n_iter: parseInt(formData.get('n_iter')),
                     cv_splits: parseInt(formData.get('cv_splits')),
-                    force_replacement: document.getElementById('forceReplacement').checked
+                    force_replacement: document.getElementById('forceReplacement').checked,
                 };
-                
-                const response = await fetch('/api/v1/retrain', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(retrainData)
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                
+
+                const data = await postJson('/api/v1/retrain', retrainData);
+
                 resultDiv.className = 'result success';
                 resultDiv.innerHTML = `
                     <strong>Retraining Status:</strong> ${data.status}<br>
@@ -429,7 +698,7 @@
                     ${data.message ? `<strong>Message:</strong> ${data.message}` : ''}
                 `;
                 resultDiv.style.display = 'block';
-                
+                await loadHistory();
             } catch (error) {
                 resultDiv.className = 'result error';
                 resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
@@ -438,6 +707,11 @@
                 retrainBtn.disabled = false;
                 retrainBtn.textContent = 'Start Retraining';
             }
+        });
+
+        loadHistory().catch((error) => {
+            historySummary.textContent = `Failed to load history: ${error.message}`;
+            activeModelBadge.textContent = 'Active model: unavailable';
         });
     </script>
 </body>

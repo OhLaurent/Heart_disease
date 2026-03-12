@@ -81,6 +81,7 @@ CV_SPLITS: int = 10
 
 # Input data path for training pipeline
 INPUT_FILE: Path = DATA_RAW_DIR / "heart_disease.csv" 
+PREDICTIONS_DB_PATH: Path = REPO_DIR / "predictions.db"
 
 # MLflow
 MLFLOW_TRACKING_DB_PATH: Path = REPO_DIR / "mlflow.db"

@@ -7,6 +7,7 @@ components from the training pipeline.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,44 @@ def _configure_mlflow() -> None:
     """Apply shared MLflow configuration for tracking and experiments."""
     mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
     mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
+
+
+@dataclass(frozen=True)
+class ModelReference:
+    """Minimal model metadata associated with a prediction run."""
+
+    version: str
+    uri: str
+
+
+@dataclass(frozen=True)
+class PredictionRunResult:
+    """Predictions produced by a model plus the model reference used."""
+
+    predictions: pd.DataFrame
+    model: ModelReference
+
+
+def get_model_reference(
+    model_name: str = MLFLOW_MODEL_NAME,
+    model_alias: str = MLFLOW_ACTIVE_ALIAS,
+) -> ModelReference:
+    """Resolve the model reference for the requested MLflow alias."""
+    _configure_mlflow()
+    client = MlflowClient()
+    try:
+        model_version = client.get_model_version_by_alias(model_name, model_alias)
+    except mlflow.exceptions.MlflowException as exc:
+        raise ValueError(
+            f"No model found with alias '{model_alias}' "
+            f"for model '{model_name}'. "
+            f"Have you trained and promoted a model yet?"
+        ) from exc
+
+    return ModelReference(
+        version=str(model_version.version),
+        uri=f"models:/{model_name}@{model_alias}",
+    )
 
 
 class PredictionPipeline:
@@ -85,6 +124,7 @@ class PredictionPipeline:
         # Will be set during load_model()
         self.model_: Any | None = None
         self.model_version_: str | None = None
+        self.model_uri_: str | None = None
 
     # ------------------------------------------------------------------
     # Model loading
@@ -109,25 +149,10 @@ class PredictionPipeline:
         >>> pipeline.load_model()
         >>> print(f"Loaded model version: {pipeline.model_version_}")
         """
-        _configure_mlflow()
-        client = MlflowClient()
-
-        # Get model version by alias
-        try:
-            model_version = client.get_model_version_by_alias(
-                self.model_name, self.model_alias
-            )
-            self.model_version_ = model_version.version
-        except mlflow.exceptions.MlflowException as e:
-            raise ValueError(
-                f"No model found with alias '{self.model_alias}' "
-                f"for model '{self.model_name}'. "
-                f"Have you trained and promoted a model yet?"
-            ) from e
-
-        # Load the model
-        model_uri = f"models:/{self.model_name}@{self.model_alias}"
-        self.model_ = mlflow.sklearn.load_model(model_uri)
+        model_reference = get_model_reference(self.model_name, self.model_alias)
+        self.model_version_ = model_reference.version
+        self.model_uri_ = model_reference.uri
+        self.model_ = mlflow.sklearn.load_model(self.model_uri_)
 
         print(
             f"✓ Loaded {self.model_name} (version {self.model_version_}, "
@@ -184,7 +209,7 @@ class PredictionPipeline:
         *,
         return_proba: bool = False,
         include_input: bool = True,
-    ) -> pd.DataFrame:
+    ) -> PredictionRunResult:
         """Make predictions on patient data.
 
         Parameters
@@ -201,8 +226,8 @@ class PredictionPipeline:
 
         Returns
         -------
-        pd.DataFrame
-            Results DataFrame with predictions. Always includes:
+        PredictionRunResult
+            Prediction results and the model reference used. The DataFrame always includes:
             - ``prediction`` : predicted class ("Absence" or "Presence")
 
             If ``return_proba=True``, also includes:
@@ -226,6 +251,8 @@ class PredictionPipeline:
             raise ValueError(
                 "Model not loaded. Call load_model() first or use predict_from_file()."
             )
+        if self.model_version_ is None or self.model_uri_ is None:
+            raise ValueError("Model metadata not loaded. Call load_model() before predict().")
 
         # Prepare features
         X = self._prepare_data(data)
@@ -250,7 +277,10 @@ class PredictionPipeline:
         if include_input:
             results = pd.concat([data.reset_index(drop=True), results], axis=1)
 
-        return results
+        return PredictionRunResult(
+            predictions=results,
+            model=ModelReference(version=self.model_version_, uri=self.model_uri_),
+        )
 
     def predict_from_file(
         self,
@@ -258,7 +288,7 @@ class PredictionPipeline:
         *,
         return_proba: bool = False,
         include_input: bool = True,
-    ) -> pd.DataFrame:
+    ) -> PredictionRunResult:
         """Make predictions from a CSV file.
 
         Convenience method that loads data from disk and makes predictions.
@@ -275,7 +305,7 @@ class PredictionPipeline:
 
         Returns
         -------
-        pd.DataFrame
+        PredictionRunResult
             Prediction results (see :meth:`predict` for details).
 
         Examples
@@ -316,7 +346,7 @@ def predict_patients(
     include_input: bool = True,
     model_name: str = MLFLOW_MODEL_NAME,
     model_alias: str = MLFLOW_ACTIVE_ALIAS,
-) -> pd.DataFrame:
+) -> PredictionRunResult:
     """Make predictions using the active model (convenience function).
 
     This is a simplified interface to :class:`PredictionPipeline` for
@@ -337,8 +367,8 @@ def predict_patients(
 
     Returns
     -------
-    pd.DataFrame
-        Prediction results.
+    PredictionRunResult
+        Prediction results with model metadata.
 
     Examples
     --------

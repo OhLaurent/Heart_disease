@@ -5,7 +5,12 @@ import pytest
 from unittest.mock import Mock, patch
 
 from heart_disease.constants import MLFLOW_EXPERIMENT_NAME, MLFLOW_TRACKING_URI
-from heart_disease.pipelines.predict import PredictionPipeline, predict_patients
+from heart_disease.pipelines.predict import (
+    ModelReference,
+    PredictionPipeline,
+    PredictionRunResult,
+    predict_patients,
+)
 
 
 class TestPredictionPipeline:
@@ -119,12 +124,16 @@ class TestPredictionPipeline:
         
         pipeline = PredictionPipeline()
         pipeline.model_ = mock_model
+        pipeline.model_version_ = "3"
+        pipeline.model_uri_ = "models:/heart_disease_model@active"
         
         results = pipeline.predict(sample_raw_data.head(3), return_proba=False)
         
-        assert 'prediction' in results.columns
-        assert len(results) == 3
-        assert list(results['prediction']) == ['Presence', 'Absence', 'Presence']
+        assert isinstance(results, PredictionRunResult)
+        assert results.model == ModelReference(version="3", uri="models:/heart_disease_model@active")
+        assert 'prediction' in results.predictions.columns
+        assert len(results.predictions) == 3
+        assert list(results.predictions['prediction']) == ['Presence', 'Absence', 'Presence']
         mock_model.predict.assert_called_once()
 
     @patch.object(PredictionPipeline, '_prepare_data')
@@ -144,13 +153,15 @@ class TestPredictionPipeline:
         
         pipeline = PredictionPipeline()
         pipeline.model_ = mock_model
+        pipeline.model_version_ = "3"
+        pipeline.model_uri_ = "models:/heart_disease_model@active"
         
         results = pipeline.predict(sample_raw_data.head(3), return_proba=True)
         
-        assert 'prediction' in results.columns
-        assert 'probability_Absence' in results.columns
-        assert 'probability_Presence' in results.columns
-        assert len(results) == 3
+        assert 'prediction' in results.predictions.columns
+        assert 'probability_Absence' in results.predictions.columns
+        assert 'probability_Presence' in results.predictions.columns
+        assert len(results.predictions) == 3
         mock_model.predict_proba.assert_called_once()
 
     @patch.object(PredictionPipeline, '_prepare_data')
@@ -169,12 +180,14 @@ class TestPredictionPipeline:
 
         pipeline = PredictionPipeline()
         pipeline.model_ = mock_model
+        pipeline.model_version_ = "3"
+        pipeline.model_uri_ = "models:/heart_disease_model@active"
 
         results = pipeline.predict(sample_raw_data.head(3), return_proba=True)
 
-        assert list(results['prediction']) == ['Presence', 'Absence', 'Presence']
-        assert 'probability_Absence' in results.columns
-        assert 'probability_Presence' in results.columns
+        assert list(results.predictions['prediction']) == ['Presence', 'Absence', 'Presence']
+        assert 'probability_Absence' in results.predictions.columns
+        assert 'probability_Presence' in results.predictions.columns
 
     @patch.object(PredictionPipeline, '_prepare_data')
     def test_predict_without_input(self, mock_prepare, sample_raw_data):
@@ -186,13 +199,15 @@ class TestPredictionPipeline:
         
         pipeline = PredictionPipeline()
         pipeline.model_ = mock_model
+        pipeline.model_version_ = "3"
+        pipeline.model_uri_ = "models:/heart_disease_model@active"
         
         results = pipeline.predict(sample_raw_data.head(2), include_input=False)
         
         # Should only have prediction column
-        assert 'prediction' in results.columns
-        assert 'id' not in results.columns
-        assert 'Age' not in results.columns
+        assert 'prediction' in results.predictions.columns
+        assert 'id' not in results.predictions.columns
+        assert 'Age' not in results.predictions.columns
 
     @patch.object(PredictionPipeline, 'load_model')
     @patch('heart_disease.pipelines.predict.DataLoader')
@@ -204,10 +219,13 @@ class TestPredictionPipeline:
         mock_loader.load.return_value = sample_raw_data.drop(columns=['Heart Disease'])
         mock_loader_class.return_value = mock_loader
         
-        expected_results = pd.DataFrame({
-            'id': [1, 2],
-            'prediction': ['Presence', 'Absence']
-        })
+        expected_results = PredictionRunResult(
+            predictions=pd.DataFrame({
+                'id': [1, 2],
+                'prediction': ['Presence', 'Absence']
+            }),
+            model=ModelReference(version="3", uri="models:/heart_disease_model@active"),
+        )
         mock_predict.return_value = expected_results
         
         pipeline = PredictionPipeline()
@@ -226,7 +244,8 @@ class TestPredictionPipeline:
         assert call_kwargs['include_input'] is True
         
         # Verify results
-        pd.testing.assert_frame_equal(results, expected_results)
+        assert results.model == expected_results.model
+        pd.testing.assert_frame_equal(results.predictions, expected_results.predictions)
 
     @patch.object(PredictionPipeline, 'load_model')
     @patch('heart_disease.pipelines.predict.DataLoader')
@@ -267,19 +286,26 @@ class TestPredictPatientsFunction:
     @patch.object(PredictionPipeline, 'load_model')
     def test_predict_patients_with_dataframe(self, mock_load, mock_predict, sample_raw_data):
         """Test predict_patients with DataFrame input."""
-        expected = pd.DataFrame({'prediction': ['Presence', 'Absence']})
+        expected = PredictionRunResult(
+            predictions=pd.DataFrame({'prediction': ['Presence', 'Absence']}),
+            model=ModelReference(version="3", uri="models:/heart_disease_model@active"),
+        )
         mock_predict.return_value = expected
         
         result = predict_patients(sample_raw_data.head(2), return_proba=True)
         
         mock_load.assert_called_once()
         mock_predict.assert_called_once()
-        pd.testing.assert_frame_equal(result, expected)
+        assert result.model == expected.model
+        pd.testing.assert_frame_equal(result.predictions, expected.predictions)
 
     @patch.object(PredictionPipeline, 'predict_from_file')
     def test_predict_patients_with_file_path(self, mock_predict_file, sample_csv_file):
         """Test predict_patients with file path input."""
-        expected = pd.DataFrame({'prediction': ['Presence', 'Absence']})
+        expected = PredictionRunResult(
+            predictions=pd.DataFrame({'prediction': ['Presence', 'Absence']}),
+            model=ModelReference(version="3", uri="models:/heart_disease_model@active"),
+        )
         mock_predict_file.return_value = expected
         
         result = predict_patients(sample_csv_file, return_proba=False)
@@ -287,13 +313,17 @@ class TestPredictPatientsFunction:
         mock_predict_file.assert_called_once()
         call_kwargs = mock_predict_file.call_args.kwargs
         assert call_kwargs['return_proba'] is False
-        pd.testing.assert_frame_equal(result, expected)
+        assert result.model == expected.model
+        pd.testing.assert_frame_equal(result.predictions, expected.predictions)
 
     @patch.object(PredictionPipeline, 'predict')
     @patch.object(PredictionPipeline, 'load_model')
     def test_predict_patients_custom_model(self, mock_load, mock_predict, sample_raw_data):
         """Test predict_patients with custom model name and alias."""
-        expected = pd.DataFrame({'prediction': ['Presence']})
+        expected = PredictionRunResult(
+            predictions=pd.DataFrame({'prediction': ['Presence']}),
+            model=ModelReference(version="7", uri="models:/custom_model@champion"),
+        )
         mock_predict.return_value = expected
         
         result = predict_patients(

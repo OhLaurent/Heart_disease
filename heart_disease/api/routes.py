@@ -4,6 +4,7 @@ import pandas as pd
 
 from fastapi import APIRouter, Request, HTTPException
 
+from heart_disease.constants import POSITIVE_TARGET_LABEL
 from heart_disease.api.schemas import (
     PatientData,
     PredictionRequest,
@@ -24,21 +25,14 @@ router = APIRouter()
 def _request_to_dataframe(patient_data: list[PatientData]) -> pd.DataFrame:
     """Convert list of PatientData to a DataFrame for model prediction.
     
-    The API schema uses a slightly different format than the raw data:
-    - FBS over 120: bool → needs conversion to "true"/"false" strings
-    - Sex and Exercise angina are already strings
-    
-    This function creates a DataFrame compatible with the prediction pipeline.
+    The request payload mirrors the production inference schema.
+    This function adds only the synthetic `id` column required by the pipeline.
     """
     data = [patient.model_dump(by_alias=True) for patient in patient_data]
     df = pd.DataFrame(data)
     
     # Add ID column (required by pipeline, will be dropped during transformation)
     df.insert(0, 'id', range(len(df)))
-    
-    # Convert FBS over 120 from bool to string format expected by pipeline
-    if 'FBS over 120' in df.columns:
-        df['FBS over 120'] = df['FBS over 120'].map({True: 'true', False: 'false'})
     
     return df
 
@@ -70,7 +64,7 @@ async def predict(body: PredictionRequest, request: Request) -> PredictionRespon
         for idx, row in results.iterrows():
             predictions.append(PredictionResult(
                 patient_id=int(idx),
-                probability=float(row['probability_Presence'])
+                probability=float(row[f'probability_{POSITIVE_TARGET_LABEL}'])
             ))
         
         return PredictionResponse(predictions=predictions)

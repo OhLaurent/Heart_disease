@@ -17,7 +17,9 @@ from mlflow.tracking import MlflowClient
 from heart_disease.constants import (
     MLFLOW_ACTIVE_ALIAS,
     MLFLOW_MODEL_NAME,
+    POSITIVE_TARGET_LABEL,
     TARGET_COLUMN,
+    TARGET_VALUE_TO_LABEL,
 )
 from heart_disease.pipelines.components.dataset import DataLoader, DataValidator
 from heart_disease.pipelines.components.features import DataTransformer
@@ -156,6 +158,17 @@ class PredictionPipeline:
     # Prediction methods
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _normalize_target_label(value: Any) -> str:
+        """Map model target values to canonical labels using shared constants."""
+        try:
+            return TARGET_VALUE_TO_LABEL[value]
+        except KeyError as exc:
+            raise ValueError(
+                f"Unsupported class label for heart disease target: {value!r}. "
+                f"Expected one of: {list(TARGET_VALUE_TO_LABEL)}"
+            ) from exc
+
     def predict(
         self,
         data: pd.DataFrame,
@@ -198,7 +211,7 @@ class PredictionPipeline:
         --------
         >>> pipeline = PredictionPipeline().load_model()
         >>> results = pipeline.predict(patients_df, return_proba=True)
-        >>> results[['id', 'prediction', 'probability_Presence']]
+        >>> results[['id', 'prediction', f'probability_{POSITIVE_TARGET_LABEL}']]
         """
         if self.model_ is None:
             raise ValueError(
@@ -209,7 +222,8 @@ class PredictionPipeline:
         X = self._prepare_data(data)
 
         # Make predictions
-        predictions = self.model_.predict(X)
+        raw_predictions = self.model_.predict(X)
+        predictions = [self._normalize_target_label(v) for v in raw_predictions]
 
         # Build results DataFrame
         results = pd.DataFrame({"prediction": predictions})
@@ -220,7 +234,8 @@ class PredictionPipeline:
             class_names = self.model_.classes_
 
             for i, class_name in enumerate(class_names):
-                results[f"probability_{class_name}"] = probabilities[:, i]
+                normalized_name = self._normalize_target_label(class_name)
+                results[f"probability_{normalized_name}"] = probabilities[:, i]
 
         # Prepend input data if requested
         if include_input:

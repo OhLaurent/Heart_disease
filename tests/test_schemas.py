@@ -19,7 +19,7 @@ class TestPatientData:
         """Test that valid patient data passes validation."""
         patient = PatientData(**valid_patient_data)
         assert patient.Age == 45
-        assert patient.Sex == "male"
+        assert patient.Sex == 1
         assert patient.Max_HR == 150
     
     def test_age_validation_min(self, valid_patient_data):
@@ -37,32 +37,32 @@ class TestPatientData:
         assert "less than or equal to 120" in str(exc_info.value)
     
     def test_sex_validation_valid_values(self, valid_patient_data):
-        """Test sex accepts 'male' and 'female'."""
-        for sex in ["male", "female"]:
+        """Test sex accepts coded values 0 and 1."""
+        for sex in [0, 1]:
             valid_patient_data["Sex"] = sex
             patient = PatientData(**valid_patient_data)
             assert patient.Sex == sex
     
     def test_sex_validation_invalid(self, valid_patient_data):
-        """Test sex rejects invalid values."""
-        valid_patient_data["Sex"] = "other"
+        """Test sex rejects values outside 0/1."""
+        valid_patient_data["Sex"] = 2
         with pytest.raises(ValidationError) as exc_info:
             PatientData(**valid_patient_data)
-        assert "Sex must be 'male' or 'female'" in str(exc_info.value)
+        assert "less than or equal to 1" in str(exc_info.value)
     
     def test_exercise_angina_validation_valid(self, valid_patient_data):
-        """Test exercise angina accepts 'yes' and 'no'."""
-        for value in ["yes", "no"]:
+        """Test exercise angina accepts coded values 0 and 1."""
+        for value in [0, 1]:
             valid_patient_data["Exercise angina"] = value
             patient = PatientData(**valid_patient_data)
             assert patient.Exercise_angina == value
     
     def test_exercise_angina_validation_invalid(self, valid_patient_data):
-        """Test exercise angina rejects invalid values."""
-        valid_patient_data["Exercise angina"] = "maybe"
+        """Test exercise angina rejects values outside 0/1."""
+        valid_patient_data["Exercise angina"] = 2
         with pytest.raises(ValidationError) as exc_info:
             PatientData(**valid_patient_data)
-        assert "Exercise angina must be 'yes' or 'no'" in str(exc_info.value)
+        assert "less than or equal to 1" in str(exc_info.value)
     
     def test_bp_validation_range(self, valid_patient_data):
         """Test BP must be between 50 and 250."""
@@ -144,13 +144,20 @@ class TestPatientData:
             PatientData(**valid_patient_data)
     
     def test_thallium_validation(self, valid_patient_data):
-        """Test thallium must be between 3 and 7."""
+        """Test thallium must be one of 3, 6, or 7."""
         valid_patient_data["Thallium"] = 3
         PatientData(**valid_patient_data)
+
+        valid_patient_data["Thallium"] = 6
+        PatientData(**valid_patient_data)
+
+        valid_patient_data["Thallium"] = 7
+        PatientData(**valid_patient_data)
         
-        valid_patient_data["Thallium"] = 2
-        with pytest.raises(ValidationError):
+        valid_patient_data["Thallium"] = 5
+        with pytest.raises(ValidationError) as exc_info:
             PatientData(**valid_patient_data)
+        assert "Thallium must be one of: 3, 6, 7" in str(exc_info.value)
     
     def test_missing_required_fields(self):
         """Test that missing required fields raise validation error."""

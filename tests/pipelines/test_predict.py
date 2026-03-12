@@ -151,6 +151,29 @@ class TestPredictionPipeline:
         mock_model.predict_proba.assert_called_once()
 
     @patch.object(PredictionPipeline, '_prepare_data')
+    def test_predict_with_numeric_classes_normalizes_output(self, mock_prepare, sample_raw_data):
+        """Test numeric model classes are normalized to Presence/Absence columns."""
+        mock_prepare.return_value = sample_raw_data.drop(columns=['id', 'Heart Disease'])
+
+        mock_model = Mock()
+        mock_model.predict.return_value = np.array([1, 0, 1])
+        mock_model.predict_proba.return_value = np.array([
+            [0.3, 0.7],
+            [0.8, 0.2],
+            [0.4, 0.6],
+        ])
+        mock_model.classes_ = np.array([0, 1])
+
+        pipeline = PredictionPipeline()
+        pipeline.model_ = mock_model
+
+        results = pipeline.predict(sample_raw_data.head(3), return_proba=True)
+
+        assert list(results['prediction']) == ['Presence', 'Absence', 'Presence']
+        assert 'probability_Absence' in results.columns
+        assert 'probability_Presence' in results.columns
+
+    @patch.object(PredictionPipeline, '_prepare_data')
     def test_predict_without_input(self, mock_prepare, sample_raw_data):
         """Test prediction without including input columns."""
         mock_prepare.return_value = sample_raw_data.drop(columns=['id', 'Heart Disease'])

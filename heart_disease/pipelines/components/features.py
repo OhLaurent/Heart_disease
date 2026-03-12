@@ -13,6 +13,7 @@ from heart_disease.constants import (
     CATEGORICAL_COLUMNS,
     ID_COLUMN,
     TARGET_COLUMN,
+    TARGET_LABEL_TO_CODE,
 )
 
 
@@ -123,5 +124,12 @@ class DataTransformer:
             )
         drop_cols = [c for c in [ID_COLUMN, TARGET_COLUMN] if c in df.columns]
         X = df.drop(columns=drop_cols)
-        y = (df[TARGET_COLUMN] == "Presence").astype(int).rename("target")
+        y = df[TARGET_COLUMN].map(TARGET_LABEL_TO_CODE)
+        if y.isna().any():
+            invalid_values = sorted({value for value in df[TARGET_COLUMN].dropna().unique() if value not in TARGET_LABEL_TO_CODE})
+            raise ValueError(
+                f"Unsupported values in '{TARGET_COLUMN}': {invalid_values}. "
+                f"Expected one of: {list(TARGET_LABEL_TO_CODE)}"
+            )
+        y = y.astype(int).rename("target")
         return X, y

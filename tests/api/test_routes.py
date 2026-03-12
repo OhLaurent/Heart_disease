@@ -17,14 +17,14 @@ class TestRequestToDataframe:
         patients = [
             PatientData(**{
                 "Age": 55,
-                "Sex": "male",
+                "Sex": 1,
                 "Chest pain type": 2,
                 "BP": 130,
                 "Cholesterol": 240,
                 "FBS over 120": True,
                 "EKG results": 1,
                 "Max HR": 150,
-                "Exercise angina": "yes",
+                "Exercise angina": 1,
                 "ST depression": 1.5,
                 "Slope of ST": 2,
                 "Number of vessels fluro": 1,
@@ -32,14 +32,14 @@ class TestRequestToDataframe:
             }),
             PatientData(**{
                 "Age": 62,
-                "Sex": "female",
+                "Sex": 0,
                 "Chest pain type": 3,
                 "BP": 140,
                 "Cholesterol": 260,
                 "FBS over 120": False,
                 "EKG results": 0,
                 "Max HR": 135,
-                "Exercise angina": "no",
+                "Exercise angina": 0,
                 "ST depression": 2.0,
                 "Slope of ST": 1,
                 "Number of vessels fluro": 2,
@@ -56,37 +56,36 @@ class TestRequestToDataframe:
         assert 'Age' in df.columns
         assert 'Sex' in df.columns
 
-    def test_converts_fbs_bool_to_string(self):
-        """Test that FBS over 120 boolean is converted to string."""
+    def test_preserves_fbs_bool(self):
+        """Test that FBS over 120 remains boolean in request DataFrame."""
         patients = [
             PatientData(**{
-                "Age": 55, "Sex": "male", "Chest pain type": 2, "BP": 130,
+                "Age": 55, "Sex": 1, "Chest pain type": 2, "BP": 130,
                 "Cholesterol": 240, "FBS over 120": True, "EKG results": 1,
-                "Max HR": 150, "Exercise angina": "yes", "ST depression": 1.5,
+                "Max HR": 150, "Exercise angina": 1, "ST depression": 1.5,
                 "Slope of ST": 2, "Number of vessels fluro": 1, "Thallium": 6
             })
         ]
         
         df = _request_to_dataframe(patients)
         
-        assert df['FBS over 120'].iloc[0] == 'true'
-        assert isinstance(df['FBS over 120'].iloc[0], str)
+        assert bool(df['FBS over 120'].iloc[0]) is True
 
-    def test_preserves_sex_and_exercise_angina_strings(self):
-        """Test that Sex and Exercise angina remain as strings."""
+    def test_preserves_sex_and_exercise_angina_codes(self):
+        """Test that Sex and Exercise angina remain as coded integers."""
         patients = [
             PatientData(**{
-                "Age": 55, "Sex": "male", "Chest pain type": 2, "BP": 130,
+                "Age": 55, "Sex": 1, "Chest pain type": 2, "BP": 130,
                 "Cholesterol": 240, "FBS over 120": False, "EKG results": 1,
-                "Max HR": 150, "Exercise angina": "yes", "ST depression": 1.5,
+                "Max HR": 150, "Exercise angina": 1, "ST depression": 1.5,
                 "Slope of ST": 2, "Number of vessels fluro": 1, "Thallium": 6
             })
         ]
         
         df = _request_to_dataframe(patients)
         
-        assert df['Sex'].iloc[0] == "male"
-        assert df['Exercise angina'].iloc[0] == "yes"
+        assert df['Sex'].iloc[0] == 1
+        assert df['Exercise angina'].iloc[0] == 1
 
 
 class TestPredictEndpoint:
@@ -107,16 +106,16 @@ class TestPredictEndpoint:
         response = client.post("/api/v1/predict", json={
             "patient_data": [
                 {
-                    "Age": 55, "Sex": "male", "Chest pain type": 2,
+                    "Age": 55, "Sex": 1, "Chest pain type": 2,
                     "BP": 130, "Cholesterol": 240, "FBS over 120": True,
-                    "EKG results": 1, "Max HR": 150, "Exercise angina": "yes",
+                    "EKG results": 1, "Max HR": 150, "Exercise angina": 1,
                     "ST depression": 1.5, "Slope of ST": 2,
                     "Number of vessels fluro": 1, "Thallium": 6
                 },
                 {
-                    "Age": 62, "Sex": "female", "Chest pain type": 3,
+                    "Age": 62, "Sex": 0, "Chest pain type": 3,
                     "BP": 140, "Cholesterol": 260, "FBS over 120": False,
-                    "EKG results": 0, "Max HR": 135, "Exercise angina": "no",
+                    "EKG results": 0, "Max HR": 135, "Exercise angina": 0,
                     "ST depression": 2.0, "Slope of ST": 1,
                     "Number of vessels fluro": 2, "Thallium": 7
                 }
@@ -133,6 +132,41 @@ class TestPredictEndpoint:
         assert data['predictions'][1]['probability'] == 0.3
 
     @patch('heart_disease.api.routes.predict_patients')
+    def test_predict_success_with_numeric_probability_columns(self, mock_predict):
+        """Test successful prediction with normalized probability columns."""
+        mock_results = pd.DataFrame({
+            'prediction': ['Presence', 'Absence'],
+            'probability_Absence': [0.3, 0.7],
+            'probability_Presence': [0.7, 0.3]
+        })
+        mock_predict.return_value = mock_results
+
+        client = TestClient(app)
+        response = client.post("/api/v1/predict", json={
+            "patient_data": [
+                {
+                    "Age": 55, "Sex": 1, "Chest pain type": 2,
+                    "BP": 130, "Cholesterol": 240, "FBS over 120": True,
+                    "EKG results": 1, "Max HR": 150, "Exercise angina": 1,
+                    "ST depression": 1.5, "Slope of ST": 2,
+                    "Number of vessels fluro": 1, "Thallium": 6
+                },
+                {
+                    "Age": 62, "Sex": 0, "Chest pain type": 3,
+                    "BP": 140, "Cholesterol": 260, "FBS over 120": False,
+                    "EKG results": 0, "Max HR": 135, "Exercise angina": 0,
+                    "ST depression": 2.0, "Slope of ST": 1,
+                    "Number of vessels fluro": 2, "Thallium": 7
+                }
+            ]
+        })
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['predictions'][0]['probability'] == 0.7
+        assert data['predictions'][1]['probability'] == 0.3
+
+    @patch('heart_disease.api.routes.predict_patients')
     def test_predict_with_model_error(self, mock_predict):
         """Test prediction when model is not available."""
         mock_predict.side_effect = ValueError("No model found with alias 'active'")
@@ -141,9 +175,9 @@ class TestPredictEndpoint:
         response = client.post("/api/v1/predict", json={
             "patient_data": [
                 {
-                    "Age": 55, "Sex": "male", "Chest pain type": 2,
+                    "Age": 55, "Sex": 1, "Chest pain type": 2,
                     "BP": 130, "Cholesterol": 240, "FBS over 120": True,
-                    "EKG results": 1, "Max HR": 150, "Exercise angina": "yes",
+                    "EKG results": 1, "Max HR": 150, "Exercise angina": 1,
                     "ST depression": 1.5, "Slope of ST": 2,
                     "Number of vessels fluro": 1, "Thallium": 6
                 }
@@ -160,14 +194,14 @@ class TestPredictEndpoint:
             "patient_data": [
                 {
                     "Age": 200,  # Invalid age > 120
-                    "Sex": "male",
+                    "Sex": 1,
                     "Chest pain type": 2,
                     "BP": 130,
                     "Cholesterol": 240,
                     "FBS over 120": True,
                     "EKG results": 1,
                     "Max HR": 150,
-                    "Exercise angina": "yes",
+                    "Exercise angina": 1,
                     "ST depression": 1.5,
                     "Slope of ST": 2,
                     "Number of vessels fluro": 1,

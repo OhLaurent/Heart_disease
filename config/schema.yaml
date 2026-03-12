@@ -34,10 +34,10 @@ columns:
 
   Sex:
     title: "Biological sex"
-    dtype: str
+    dtype: int64
     nullable: false
     checks:
-      isin: ["male", "female"]
+      isin: [0, 1]
     description: "Patient sex as a string category. Values are cleaned labels (male/female); raw data encodes this as 1=male, 0=female."
 
   Chest pain type:
@@ -94,11 +94,11 @@ columns:
 
   Exercise angina:
     title: "Exercise-induced angina"
-    dtype: str
+    dtype: int64
     nullable: false
     checks:
-      isin: ["yes", "no"]
-    description: "Whether the patient experienced exercise-induced angina. Values are cleaned string labels (yes/no); raw data encodes this as 1/0."
+      isin: [0, 1]
+    description: "Whether the patient experienced exercise-induced angina. Values are cleaned integer labels (1/0); raw data encodes this as 1/0."
 
   ST depression:
     title: "ST depression (exercise vs. rest)"

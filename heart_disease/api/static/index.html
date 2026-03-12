@@ -194,8 +194,8 @@
                     <div class="form-group">
                         <label for="sex">Sex</label>
                         <select id="sex" name="Sex" required>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
+                            <option value="1">Male (1)</option>
+                            <option value="0">Female (0)</option>
                         </select>
                     </div>
                 </div>
@@ -240,8 +240,8 @@
                     <div class="form-group">
                         <label for="angina">Exercise Angina</label>
                         <select id="angina" name="Exercise angina" required>
-                            <option value="yes">Yes</option>
-                            <option value="no">No</option>
+                            <option value="1">Yes (1)</option>
+                            <option value="0">No (0)</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -263,7 +263,11 @@
                 
                 <div class="form-group">
                     <label for="thallium">Thallium (3-7)</label>
-                    <input type="number" id="thallium" name="Thallium" required min="3" max="7" value="3">
+                    <select id="thallium" name="Thallium" required>
+                        <option value="3">Normal (3)</option>
+                        <option value="6">Fixed Defect (6)</option>
+                        <option value="7">Reversible Defect (7)</option>
+                    </select>
                 </div>
                 
                 <button type="submit" id="predictBtn">Predict</button>
@@ -315,14 +319,14 @@
                 const formData = new FormData(e.target);
                 const patientData = {
                     Age: parseInt(formData.get('Age')),
-                    Sex: formData.get('Sex'),
+                    Sex: parseInt(formData.get('Sex')),
                     'Chest pain type': parseInt(formData.get('Chest pain type')),
                     BP: parseInt(formData.get('BP')),
                     Cholesterol: parseInt(formData.get('Cholesterol')),
                     'FBS over 120': formData.get('FBS over 120') === 'true',
                     'EKG results': parseInt(formData.get('EKG results')),
                     'Max HR': parseInt(formData.get('Max HR')),
-                    'Exercise angina': formData.get('Exercise angina'),
+                    'Exercise angina': parseInt(formData.get('Exercise angina')),
                     'ST depression': parseFloat(formData.get('ST depression')),
                     'Slope of ST': parseInt(formData.get('Slope of ST')),
                     'Number of vessels fluro': parseInt(formData.get('Number of vessels fluro')),

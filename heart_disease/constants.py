@@ -11,8 +11,7 @@ from pathlib import Path
 # Root directories
 # ---------------------------------------------------------------------------
 
-# Repository root — two levels up from this file (src/heart_disease/config.py)
-REPO_DIR: Path = Path(__file__).resolve().parents[2]
+REPO_DIR: Path = Path(__file__).resolve().parents[1]
 
 DATA_DIR: Path = REPO_DIR / "data"
 DATA_RAW_DIR: Path = DATA_DIR / "raw"
@@ -51,6 +50,21 @@ BINARY_MAPPINGS: dict[str, dict[int, str]] = {
     "Sex": {1: "male", 0: "female"},
     "FBS over 120": {1: "true", 0: "false"},
     "Exercise angina": {1: "yes", 0: "no"},
+}
+
+NEGATIVE_TARGET_LABEL: str = "Absence"
+POSITIVE_TARGET_LABEL: str = "Presence"
+
+TARGET_LABEL_TO_CODE: dict[str, int] = {
+    NEGATIVE_TARGET_LABEL: 0,
+    POSITIVE_TARGET_LABEL: 1,
+}
+
+TARGET_VALUE_TO_LABEL: dict[str | int, str] = {
+    NEGATIVE_TARGET_LABEL: NEGATIVE_TARGET_LABEL,
+    POSITIVE_TARGET_LABEL: POSITIVE_TARGET_LABEL,
+    0: NEGATIVE_TARGET_LABEL,
+    1: POSITIVE_TARGET_LABEL,
 }
 
 # ---------------------------------------------------------------------------

@@ -16,13 +16,21 @@ from mlflow.tracking import MlflowClient
 
 from heart_disease.constants import (
     MLFLOW_ACTIVE_ALIAS,
+    MLFLOW_EXPERIMENT_NAME,
     MLFLOW_MODEL_NAME,
+    MLFLOW_TRACKING_URI,
     POSITIVE_TARGET_LABEL,
     TARGET_COLUMN,
     TARGET_VALUE_TO_LABEL,
 )
 from heart_disease.pipelines.components.dataset import DataLoader, DataValidator
 from heart_disease.pipelines.components.features import DataTransformer
+
+
+def _configure_mlflow() -> None:
+    """Apply shared MLflow configuration for tracking and experiments."""
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
 
 
 class PredictionPipeline:
@@ -101,6 +109,7 @@ class PredictionPipeline:
         >>> pipeline.load_model()
         >>> print(f"Loaded model version: {pipeline.model_version_}")
         """
+        _configure_mlflow()
         client = MlflowClient()
 
         # Get model version by alias

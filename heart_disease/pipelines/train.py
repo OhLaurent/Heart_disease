@@ -34,7 +34,9 @@ from heart_disease.constants import (
     LOGISTIC_MAX_ITER,
     MLFLOW_ACTIVE_ALIAS,
     MLFLOW_ARTIFACT_PATH,
+    MLFLOW_EXPERIMENT_NAME,
     MLFLOW_MODEL_NAME,
+    MLFLOW_TRACKING_URI,
     N_JOBS,
     NUMERICAL_COLUMNS,
     RANDOM_STATE,
@@ -45,6 +47,12 @@ from heart_disease.pipelines.components.dataset import DataLoader, DataValidator
 from heart_disease.pipelines.components.features import DataTransformer
 
 warnings.filterwarnings("ignore", category=UserWarning)
+
+
+def _configure_mlflow() -> None:
+    """Apply shared MLflow configuration for tracking and experiments."""
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.set_experiment(MLFLOW_EXPERIMENT_NAME)
 
 
 class TrainingPipeline:
@@ -356,6 +364,7 @@ class TrainingPipeline:
             Metric value, or None if no active model exists.
         """
         try:
+            _configure_mlflow()
             client = mlflow.tracking.MlflowClient()
             active_version = client.get_model_version_by_alias(
                 name=MLFLOW_MODEL_NAME, alias=MLFLOW_ACTIVE_ALIAS
@@ -382,6 +391,7 @@ class TrainingPipeline:
             True if promotion succeeded, False otherwise.
         """
         try:
+            _configure_mlflow()
             client = mlflow.tracking.MlflowClient()
 
             # Get the model version from this run
@@ -466,6 +476,8 @@ class TrainingPipeline:
         >>> print(f"Run ID: {results['run_id']}")
         >>> print(f"Promoted: {results['promoted']}")
         """
+        _configure_mlflow()
+
         # Load and prepare data
         df = self._load_and_validate_data()
         X, y = self._prepare_features(df)

@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from unittest.mock import Mock, patch
 
+from heart_disease.constants import MLFLOW_EXPERIMENT_NAME, MLFLOW_TRACKING_URI
 from heart_disease.pipelines.predict import PredictionPipeline, predict_patients
 
 
@@ -52,6 +53,8 @@ class TestPredictionPipeline:
         mock_client.get_model_version_by_alias.assert_called_once_with(
             "heart_disease_model", "active"
         )
+        mock_mlflow.set_tracking_uri.assert_called_once_with(MLFLOW_TRACKING_URI)
+        mock_mlflow.set_experiment.assert_called_once_with(MLFLOW_EXPERIMENT_NAME)
         mock_mlflow.sklearn.load_model.assert_called_once_with("models:/heart_disease_model@active")
 
     @patch('heart_disease.pipelines.predict.MlflowClient')

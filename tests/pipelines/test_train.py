@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from unittest.mock import Mock, patch
 
+from heart_disease.constants import MLFLOW_EXPERIMENT_NAME, MLFLOW_TRACKING_URI
 from heart_disease.pipelines.train import TrainingPipeline, train_pipeline
 from heart_disease.constants import RANDOM_STATE
 
@@ -204,6 +205,46 @@ class TestTrainingPipeline:
         mock_mlflow.log_params.assert_called_once_with(params)
         mock_mlflow.log_metrics.assert_called_once_with(metrics)
         mock_mlflow.sklearn.log_model.assert_called_once()
+
+    @patch.object(TrainingPipeline, '_should_promote_model', return_value=False)
+    @patch.object(TrainingPipeline, '_evaluate_model')
+    @patch.object(TrainingPipeline, '_tune_hyperparameters')
+    @patch.object(TrainingPipeline, '_split_train_test')
+    @patch.object(TrainingPipeline, '_prepare_features')
+    @patch.object(TrainingPipeline, '_load_and_validate_data')
+    @patch('heart_disease.pipelines.train.mlflow')
+    def test_run_configures_mlflow(self, mock_mlflow, mock_load, mock_prepare, mock_split, mock_tune, mock_evaluate, mock_should_promote):
+        """Test run applies shared MLflow tracking configuration."""
+        sample_df = pd.DataFrame({"dummy": [1, 2]})
+        X_train = pd.DataFrame({"x": [1, 2, 3, 4]})
+        X_test = pd.DataFrame({"x": [5, 6]})
+        y_train = pd.Series([0, 1, 0, 1])
+        y_test = pd.Series([0, 1])
+
+        mock_load.return_value = sample_df
+        mock_prepare.return_value = (pd.DataFrame({"x": [1, 2, 3, 4, 5, 6]}), pd.Series([0, 1, 0, 1, 0, 1]))
+        mock_split.return_value = (X_train, X_test, y_train, y_test)
+
+        best_model = Mock()
+        best_model.predict_proba.return_value = np.array([[0.4, 0.6], [0.7, 0.3]])
+        search = Mock()
+        search.best_estimator_ = best_model
+        search.best_score_ = 0.9
+        search.best_params_ = {"classifier__C": 1.0}
+        mock_tune.return_value = search
+        mock_evaluate.return_value = {"test_roc_auc": 0.8}
+
+        mock_run = Mock()
+        mock_run.__enter__ = Mock(return_value=mock_run)
+        mock_run.__exit__ = Mock(return_value=None)
+        mock_mlflow.start_run.return_value = mock_run
+        mock_mlflow.active_run.return_value.info.run_id = "run-123"
+
+        pipeline = TrainingPipeline()
+        pipeline.run()
+
+        mock_mlflow.set_tracking_uri.assert_called_once_with(MLFLOW_TRACKING_URI)
+        mock_mlflow.set_experiment.assert_called_once_with(MLFLOW_EXPERIMENT_NAME)
 
     def test_get_active_model_metric_no_active_model(self):
         """Test getting metric when no active model exists."""

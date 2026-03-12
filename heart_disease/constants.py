@@ -83,15 +83,18 @@ CV_SPLITS: int = 10
 INPUT_FILE: Path = DATA_RAW_DIR / "heart_disease.csv" 
 
 # MLflow
+MLFLOW_TRACKING_DB_PATH: Path = REPO_DIR / "mlflow.db"
+MLFLOW_TRACKING_URI: str = f"sqlite:///{MLFLOW_TRACKING_DB_PATH.resolve().as_posix()}"
+MLFLOW_EXPERIMENT_NAME: str = "heart_disease"
 MLFLOW_MODEL_NAME: str = "heart_disease_model"
 MLFLOW_ARTIFACT_PATH: str = "model"
 MLFLOW_ACTIVE_ALIAS: str = "active"
 
 # Hyperparameter search space for Logistic Regression
-HYPERPARAMETER_GRID: dict[str, list] = {
-    "classifier__C": [0.001, 0.01, 0.1, 1, 10, 100],
-    "classifier__penalty": ["l2", "none"],
-    "classifier__solver": ["lbfgs", "newton-cg", "sag"],
+HYPERPARAMETER_GRID = {
+    "classifier__C": [1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100],
+    "classifier__penalty": ["l1", "l2"],
+    "classifier__solver": ["liblinear"],
     "classifier__class_weight": [None, "balanced"],
 }
 

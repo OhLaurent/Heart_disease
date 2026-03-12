@@ -246,8 +246,13 @@ class TestTrainingPipeline:
         mock_mlflow.set_tracking_uri.assert_called_once_with(MLFLOW_TRACKING_URI)
         mock_mlflow.set_experiment.assert_called_once_with(MLFLOW_EXPERIMENT_NAME)
 
-    def test_get_active_model_metric_no_active_model(self):
+    @patch('heart_disease.pipelines.train.mlflow.tracking.MlflowClient')
+    def test_get_active_model_metric_no_active_model(self, mock_client_class):
         """Test getting metric when no active model exists."""
+        mock_client = Mock()
+        mock_client.get_model_version_by_alias.side_effect = RuntimeError("No active model")
+        mock_client_class.return_value = mock_client
+
         metric = TrainingPipeline._get_active_model_metric("test_roc_auc")
         
         # Should return None if no active model or error occurs

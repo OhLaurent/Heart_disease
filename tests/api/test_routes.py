@@ -91,8 +91,9 @@ class TestRequestToDataframe:
 class TestPredictEndpoint:
     """Tests for /predict endpoint."""
 
+    @patch('heart_disease.api.routes.prediction_store')
     @patch('heart_disease.api.routes.predict_patients')
-    def test_predict_success(self, mock_predict):
+    def test_predict_success(self, mock_predict, mock_store):
         """Test successful prediction."""
         # Setup mock
         mock_results = pd.DataFrame({
@@ -100,7 +101,10 @@ class TestPredictEndpoint:
             'probability_Absence': [0.3, 0.7],
             'probability_Presence': [0.7, 0.3]
         })
-        mock_predict.return_value = mock_results
+        mock_predict.return_value = Mock(
+            predictions=mock_results,
+            model=Mock(version='3', uri='models:/heart_disease_model@active')
+        )
         
         client = TestClient(app)
         response = client.post("/api/v1/predict", json={
@@ -125,21 +129,30 @@ class TestPredictEndpoint:
         assert response.status_code == 200
         data = response.json()
         assert 'predictions' in data
+        assert data['model_version'] == '3'
+        assert data['model_uri'] == 'models:/heart_disease_model@active'
         assert len(data['predictions']) == 2
         assert data['predictions'][0]['patient_id'] == 0
+        assert data['predictions'][0]['prediction'] == 'Presence'
         assert data['predictions'][0]['probability'] == 0.7
         assert data['predictions'][1]['patient_id'] == 1
+        assert data['predictions'][1]['prediction'] == 'Absence'
         assert data['predictions'][1]['probability'] == 0.3
+        mock_store.save_prediction_run.assert_called_once()
 
+    @patch('heart_disease.api.routes.prediction_store')
     @patch('heart_disease.api.routes.predict_patients')
-    def test_predict_success_with_numeric_probability_columns(self, mock_predict):
+    def test_predict_success_with_numeric_probability_columns(self, mock_predict, mock_store):
         """Test successful prediction with normalized probability columns."""
         mock_results = pd.DataFrame({
             'prediction': ['Presence', 'Absence'],
             'probability_Absence': [0.3, 0.7],
             'probability_Presence': [0.7, 0.3]
         })
-        mock_predict.return_value = mock_results
+        mock_predict.return_value = Mock(
+            predictions=mock_results,
+            model=Mock(version='5', uri='models:/heart_disease_model@active')
+        )
 
         client = TestClient(app)
         response = client.post("/api/v1/predict", json={
@@ -163,8 +176,10 @@ class TestPredictEndpoint:
 
         assert response.status_code == 200
         data = response.json()
+        assert data['model_version'] == '5'
         assert data['predictions'][0]['probability'] == 0.7
         assert data['predictions'][1]['probability'] == 0.3
+        mock_store.save_prediction_run.assert_called_once()
 
     @patch('heart_disease.api.routes.predict_patients')
     def test_predict_with_model_error(self, mock_predict):
@@ -211,6 +226,44 @@ class TestPredictEndpoint:
         })
         
         assert response.status_code == 422  # Validation error
+
+    @patch('heart_disease.api.routes.get_model_reference')
+    @patch('heart_disease.api.routes.prediction_store')
+    def test_prediction_history(self, mock_store, mock_get_model_reference):
+        """Test prediction history endpoint with model filter metadata."""
+        mock_store.list_predictions.return_value = [
+            {
+                'id': 1,
+                'created_at': '2026-03-12T12:00:00+00:00',
+                'request_id': 'req-1',
+                'patient_index': 0,
+                'model_version': '3',
+                'model_uri': 'models:/heart_disease_model@active',
+                'input_data': {'Age': 55},
+                'output_data': {'patient_id': 0, 'prediction': 'Presence', 'probability': 0.7},
+            }
+        ]
+        mock_store.list_models.return_value = [
+            {
+                'model_version': '3',
+                'model_uri': 'models:/heart_disease_model@active',
+                'prediction_count': 1,
+                'latest_prediction_at': '2026-03-12T12:00:00+00:00',
+            }
+        ]
+        mock_get_model_reference.return_value = Mock(version='3', uri='models:/heart_disease_model@active')
+
+        client = TestClient(app)
+        response = client.get('/api/v1/predictions/history?model_version=3')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['active_model_version'] == '3'
+        assert len(data['models']) == 1
+        assert data['models'][0]['is_active'] is True
+        assert len(data['predictions']) == 1
+        assert data['predictions'][0]['output_data']['prediction'] == 'Presence'
+        mock_store.list_predictions.assert_called_once_with(model_version='3')
 
 
 class TestRetrainEndpoint:

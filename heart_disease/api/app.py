@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from heart_disease.api.routes import router
+from heart_disease.api.routes import prediction_store, router
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -23,6 +23,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.info("Starting up the application...")
+    prediction_store.initialize()
     yield
     logging.info("Shutting down the application...")
 

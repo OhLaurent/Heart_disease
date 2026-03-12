@@ -4,6 +4,9 @@ from pydantic import ValidationError
 
 from heart_disease.api.schemas import (
     PatientData,
+    PredictionHistoryEntry,
+    PredictionHistoryResponse,
+    PredictionModelOption,
     PredictionRequest,
     PredictionResult,
     PredictionResponse,
@@ -190,20 +193,21 @@ class TestPredictionResult:
     
     def test_valid_prediction_result(self):
         """Test valid prediction result."""
-        result = PredictionResult(patient_id=0, probability=0.75)
+        result = PredictionResult(patient_id=0, prediction="Presence", probability=0.75)
         assert result.patient_id == 0
+        assert result.prediction == "Presence"
         assert result.probability == 0.75
     
     def test_probability_range(self):
         """Test probability must be between 0.0 and 1.0."""
-        PredictionResult(patient_id=0, probability=0.0)
-        PredictionResult(patient_id=0, probability=1.0)
+        PredictionResult(patient_id=0, prediction="Absence", probability=0.0)
+        PredictionResult(patient_id=0, prediction="Presence", probability=1.0)
         
         with pytest.raises(ValidationError):
-            PredictionResult(patient_id=0, probability=1.5)
+            PredictionResult(patient_id=0, prediction="Presence", probability=1.5)
         
         with pytest.raises(ValidationError):
-            PredictionResult(patient_id=0, probability=-0.1)
+            PredictionResult(patient_id=0, prediction="Presence", probability=-0.1)
 
 
 class TestPredictionResponse:
@@ -212,16 +216,59 @@ class TestPredictionResponse:
     def test_valid_response(self):
         """Test valid prediction response."""
         predictions = [
-            PredictionResult(patient_id=0, probability=0.5),
-            PredictionResult(patient_id=1, probability=0.75),
+            PredictionResult(patient_id=0, prediction="Absence", probability=0.5),
+            PredictionResult(patient_id=1, prediction="Presence", probability=0.75),
         ]
-        response = PredictionResponse(predictions=predictions)
+        response = PredictionResponse(
+            model_version="3",
+            model_uri="models:/heart_disease_model@active",
+            predictions=predictions,
+        )
         assert len(response.predictions) == 2
+        assert response.model_version == "3"
     
     def test_empty_predictions(self):
         """Test response with empty predictions list."""
-        response = PredictionResponse(predictions=[])
+        response = PredictionResponse(
+            model_version="3",
+            model_uri="models:/heart_disease_model@active",
+            predictions=[],
+        )
         assert len(response.predictions) == 0
+
+
+class TestPredictionHistorySchemas:
+    """Tests for prediction history schemas."""
+
+    def test_prediction_history_entry(self):
+        entry = PredictionHistoryEntry(
+            id=1,
+            created_at="2026-03-12T12:00:00+00:00",
+            request_id="req-1",
+            patient_index=0,
+            model_version="3",
+            model_uri="models:/heart_disease_model@active",
+            input_data={"Age": 55},
+            output_data={"patient_id": 0, "prediction": "Presence", "probability": 0.7},
+        )
+        assert entry.model_version == "3"
+
+    def test_prediction_history_response(self):
+        response = PredictionHistoryResponse(
+            active_model_version="3",
+            active_model_uri="models:/heart_disease_model@active",
+            models=[
+                PredictionModelOption(
+                    model_version="3",
+                    model_uri="models:/heart_disease_model@active",
+                    prediction_count=4,
+                    latest_prediction_at="2026-03-12T12:00:00+00:00",
+                    is_active=True,
+                )
+            ],
+            predictions=[],
+        )
+        assert response.models[0].is_active is True
 
 
 class TestRetrainRequest:

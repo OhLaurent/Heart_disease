@@ -17,3 +17,6 @@ htmlcov/
 # MLflow
 mlruns/
 mlflow.db
+
+# Database
+predictions.db

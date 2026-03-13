@@ -24,6 +24,15 @@ STATIC_DIR = Path(__file__).parent / "static"
 async def lifespan(app: FastAPI):
     logging.info("Starting up the application...")
     prediction_store.initialize()
+    try:
+        from heart_disease.api.routes import get_model_reference
+        model = get_model_reference()
+        logging.info("Active model: version=%s uri=%s", model.version, model.uri)
+    except Exception:
+        logging.warning(
+            "No active model found. The /predict endpoint will return 503 "
+            "until a model is trained via POST /api/v1/retrain."
+        )
     yield
     logging.info("Shutting down the application...")
 

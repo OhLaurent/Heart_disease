@@ -110,8 +110,15 @@ async def predict(body: PredictionRequest, request: Request) -> PredictionRespon
         )
     
     except ValueError as e:
-        logger.error(f"Prediction failed: {str(e)}")
-        raise HTTPException(status_code=400, detail=str(e))
+        err = str(e)
+        if "No model found with alias" in err:
+            logger.warning("Prediction rejected: no active model available.")
+            raise HTTPException(
+                status_code=503,
+                detail="No trained model is available. Train one first via POST /api/v1/retrain.",
+            )
+        logger.error(f"Prediction failed: {err}")
+        raise HTTPException(status_code=400, detail=err)
     except Exception as e:
         logger.error(f"Unexpected error during prediction: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error during prediction")

@@ -55,6 +55,13 @@
             margin-bottom: 16px;
         }
 
+        .toolbar-grid {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) minmax(260px, 320px);
+            gap: 16px;
+            align-items: end;
+        }
+
         .model-badge {
             display: inline-flex;
             align-items: center;
@@ -252,6 +259,55 @@
             color: #74879a;
         }
 
+        .tab-shell {
+            background: white;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 25px rgba(31, 49, 70, 0.08);
+        }
+
+        .tab-nav {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            padding: 4px;
+            background: #edf4fa;
+            border-radius: 999px;
+        }
+
+        .tab-button {
+            appearance: none;
+            border: none;
+            background: transparent;
+            color: #42617c;
+            padding: 12px 18px;
+            border-radius: 999px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+        }
+
+        .tab-button:hover {
+            background: rgba(52, 152, 219, 0.12);
+            color: #1d5f8f;
+        }
+
+        .tab-button.is-active {
+            background: white;
+            color: #1d5f8f;
+            box-shadow: 0 8px 18px rgba(31, 49, 70, 0.08);
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.is-active {
+            display: block;
+        }
+
         .status-pill {
             display: inline-flex;
             align-items: center;
@@ -288,6 +344,19 @@
                 flex-direction: column;
                 align-items: stretch;
             }
+
+            .toolbar-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tab-nav {
+                border-radius: 16px;
+            }
+
+            .tab-button {
+                width: 100%;
+                text-align: left;
+            }
         }
     </style>
 </head>
@@ -298,7 +367,6 @@
         <div class="section">
             <div class="section-header">
                 <h2>Patient Prediction</h2>
-                <div id="activeModelBadge" class="model-badge">Active model: loading...</div>
             </div>
             <form id="predictForm">
                 <div class="form-row">
@@ -391,104 +459,123 @@
         </div>
 
         <div class="section">
-            <h2>Populate History With Random Predictions</h2>
-            <form id="randomBatchForm">
-                <div class="actions-row">
-                    <div class="form-group">
-                        <label for="randomCount">Number of random patients</label>
-                        <input type="number" id="randomCount" name="randomCount" min="1" max="250" value="10" required>
-                    </div>
-                    <button type="submit" id="randomBatchBtn">Generate And Predict</button>
-                </div>
-                <div id="randomBatchResult" class="result"></div>
-            </form>
-        </div>
-
-        <div class="section">
-            <div class="section-header">
-                <h2>Prediction History</h2>
-                <div class="form-group" style="min-width: 260px; margin-bottom: 0;">
+            <div class="toolbar-grid">
+                <div id="activeModelBadge" class="model-badge">Active model: loading...</div>
+                <div class="form-group" style="margin-bottom: 0;">
                     <label for="modelFilter">Filter by model</label>
                     <select id="modelFilter"></select>
                 </div>
             </div>
-            <div class="history-meta">
-                <span id="historySummary" class="muted">Loading history...</span>
-            </div>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Created</th>
-                            <th>Model</th>
-                            <th>Patient</th>
-                            <th>Prediction</th>
-                            <th>Probability</th>
-                            <th>Age</th>
-                            <th>BP</th>
-                            <th>Cholesterol</th>
-                            <th>Input Snapshot</th>
-                        </tr>
-                    </thead>
-                    <tbody id="historyTableBody">
-                        <tr><td colspan="9" class="muted">Loading...</td></tr>
-                    </tbody>
-                </table>
+        </div>
+
+        <div class="tab-shell">
+            <div class="tab-nav" role="tablist" aria-label="Frontend sections">
+                <button type="button" class="tab-button is-active" id="predictionsTabButton" data-tab-target="predictionsTabPanel" role="tab" aria-selected="true" aria-controls="predictionsTabPanel">Predictions & History</button>
+                <button type="button" class="tab-button" id="monitoringTabButton" data-tab-target="monitoringTabPanel" role="tab" aria-selected="false" aria-controls="monitoringTabPanel">Drift & Retraining</button>
             </div>
         </div>
 
-        <div class="section">
-            <h2>Prediction Drift Session</h2>
-            <div class="history-meta">
-                <span id="driftSummary" class="muted">Loading drift report...</span>
+        <div id="predictionsTabPanel" class="tab-panel is-active" role="tabpanel" aria-labelledby="predictionsTabButton">
+            <div class="section">
+                <h2>Populate History With Random Predictions</h2>
+                <form id="randomBatchForm">
+                    <div class="actions-row">
+                        <div class="form-group">
+                            <label for="randomCount">Number of random patients</label>
+                            <input type="number" id="randomCount" name="randomCount" min="1" max="250" value="10" required>
+                        </div>
+                        <button type="submit" id="randomBatchBtn">Generate And Predict</button>
+                    </div>
+                    <div id="randomBatchResult" class="result"></div>
+                </form>
             </div>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Feature</th>
-                            <th>Type</th>
-                            <th>Baseline</th>
-                            <th>Current</th>
-                            <th>Score</th>
-                            <th>Status</th>
-                            <th>Sample Size</th>
-                        </tr>
-                    </thead>
-                    <tbody id="driftTableBody">
-                        <tr><td colspan="7" class="muted">Loading...</td></tr>
-                    </tbody>
-                </table>
+
+            <div class="section">
+                <div class="section-header">
+                    <h2>Prediction History</h2>
+                </div>
+                <div class="history-meta">
+                    <span id="historySummary" class="muted">Loading history...</span>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Created</th>
+                                <th>Model</th>
+                                <th>Patient</th>
+                                <th>Prediction</th>
+                                <th>Probability</th>
+                                <th>Age</th>
+                                <th>BP</th>
+                                <th>Cholesterol</th>
+                                <th>Input Snapshot</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr><td colspan="9" class="muted">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
-        <div class="section">
-            <h2>Model Retraining</h2>
-            <form id="retrainForm">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="nIter">Number of Iterations</label>
-                        <input type="number" id="nIter" name="n_iter" required min="1" value="20">
-                    </div>
-                    <div class="form-group">
-                        <label for="cvSplits">CV Splits</label>
-                        <input type="number" id="cvSplits" name="cv_splits" required min="2" value="5">
-                    </div>
+        <div id="monitoringTabPanel" class="tab-panel" role="tabpanel" aria-labelledby="monitoringTabButton">
+            <div class="section">
+                <h2>Prediction Drift Session</h2>
+                <div class="history-meta">
+                    <span id="driftSummary" class="muted">Loading drift report...</span>
                 </div>
-
-                <div class="checkbox-group">
-                    <input type="checkbox" id="forceReplacement" name="force_replacement">
-                    <label for="forceReplacement">Force replacement if model does not outperform current active model</label>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Type</th>
+                                <th>Baseline</th>
+                                <th>Current</th>
+                                <th>Score</th>
+                                <th>Status</th>
+                                <th>Sample Size</th>
+                            </tr>
+                        </thead>
+                        <tbody id="driftTableBody">
+                            <tr><td colspan="7" class="muted">Loading...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
+            </div>
 
-                <button type="submit" id="retrainBtn">Start Retraining</button>
-                <div id="retrainResult" class="result"></div>
-            </form>
+            <div class="section">
+                <h2>Model Retraining</h2>
+                <form id="retrainForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="nIter">Number of Iterations</label>
+                            <input type="number" id="nIter" name="n_iter" required min="1" value="20">
+                        </div>
+                        <div class="form-group">
+                            <label for="cvSplits">CV Splits</label>
+                            <input type="number" id="cvSplits" name="cv_splits" required min="2" value="5">
+                        </div>
+                    </div>
+
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="forceReplacement" name="force_replacement">
+                        <label for="forceReplacement">Force replacement if model does not outperform current active model</label>
+                    </div>
+
+                    <button type="submit" id="retrainBtn">Start Retraining</button>
+                    <div id="retrainResult" class="result"></div>
+                </form>
+            </div>
         </div>
     </div>
 
     <script>
         const activeModelBadge = document.getElementById('activeModelBadge');
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabPanels = document.querySelectorAll('.tab-panel');
         const modelFilter = document.getElementById('modelFilter');
         const historySummary = document.getElementById('historySummary');
         const historyTableBody = document.getElementById('historyTableBody');
@@ -577,6 +664,18 @@
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             return response.json();
+        }
+
+        function setActiveTab(targetId) {
+            for (const button of tabButtons) {
+                const isActive = button.dataset.tabTarget === targetId;
+                button.classList.toggle('is-active', isActive);
+                button.setAttribute('aria-selected', String(isActive));
+            }
+
+            for (const panel of tabPanels) {
+                panel.classList.toggle('is-active', panel.id === targetId);
+            }
         }
 
         function renderActiveModel(version, uri) {
@@ -811,6 +910,12 @@
                 historySummary.textContent = `Failed to load history: ${error.message}`;
             }
         });
+
+        for (const button of tabButtons) {
+            button.addEventListener('click', () => {
+                setActiveTab(button.dataset.tabTarget);
+            });
+        }
 
         document.getElementById('retrainForm').addEventListener('submit', async (event) => {
             event.preventDefault();

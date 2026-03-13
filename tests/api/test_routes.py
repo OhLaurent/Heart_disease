@@ -240,7 +240,7 @@ class TestPredictEndpoint:
                 'model_version': '3',
                 'model_uri': 'models:/heart_disease_model@active',
                 'input_data': {'Age': 55},
-                'output_data': {'patient_id': 0, 'prediction': 'Presence', 'probability': 0.7},
+                'output_data': {'prediction': 'Presence', 'probability': 0.7},
             }
         ]
         mock_store.list_models.return_value = [
@@ -262,6 +262,8 @@ class TestPredictEndpoint:
         assert len(data['models']) == 1
         assert data['models'][0]['is_active'] is True
         assert len(data['predictions']) == 1
+        assert data['predictions'][0]['patient_index'] == 0
+        assert 'patient_id' not in data['predictions'][0]['output_data']
         assert data['predictions'][0]['output_data']['prediction'] == 'Presence'
         mock_store.list_predictions.assert_called_once_with(model_version='3')
 
@@ -277,7 +279,7 @@ class TestPredictEndpoint:
             'model_version': '3',
             'model_uri': 'models:/heart_disease_model/3',
             'input_data': {'Age': 55},
-            'output_data': {'patient_id': 0, 'prediction': 'Presence', 'probability': 0.7},
+            'output_data': {'prediction': 'Presence', 'probability': 0.7},
         }]
         mock_drift_report.return_value = {
             'model_version': '3',

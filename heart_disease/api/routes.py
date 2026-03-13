@@ -87,7 +87,10 @@ async def predict(body: PredictionRequest, request: Request) -> PredictionRespon
                 probability=float(row[f'probability_{POSITIVE_TARGET_LABEL}'])
             )
             predictions.append(prediction)
-            persisted_outputs.append(prediction.model_dump())
+            persisted_outputs.append({
+                "prediction": prediction.prediction,
+                "probability": prediction.probability,
+            })
 
         prediction_store.save_prediction_run(
             inputs=request_inputs,

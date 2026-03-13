@@ -19,6 +19,8 @@ def test_app_routes_registered(app):
     assert "/" in routes
     assert "/api/v1/predict" in routes
     assert "/api/v1/predictions/history" in routes
+    assert "/api/v1/predictions/drift" in routes
+    assert "/api/v1/config" in routes
     assert "/api/v1/retrain" in routes
 
 

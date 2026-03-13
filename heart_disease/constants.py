@@ -7,6 +7,8 @@ the current working directory.
 
 from pathlib import Path
 
+import numpy as np
+
 # ---------------------------------------------------------------------------
 # Root directories
 # ---------------------------------------------------------------------------
@@ -93,10 +95,9 @@ MLFLOW_ACTIVE_ALIAS: str = "active"
 
 # Hyperparameter search space for Logistic Regression
 HYPERPARAMETER_GRID = {
-    "classifier__C": [1e-4, 1e-3, 1e-2, 1e-1, 1, 10, 100],
-    "classifier__penalty": ["l1", "l2"],
-    "classifier__solver": ["liblinear"],
+    "classifier__C": np.logspace(-4, 2, 7),
     "classifier__class_weight": [None, "balanced"],
+    "classifier__solver": ["lbfgs"],
 }
 
 # Logistic Regression default settings
@@ -107,3 +108,20 @@ DEFAULT_N_ITER: int = 50
 DEFAULT_CV_FOLDS: int = 5
 SCORING_METRIC: str = "roc_auc"
 N_JOBS: int = -1
+
+# ---------------------------------------------------------------------------
+# Monitoring and risk thresholds
+# ---------------------------------------------------------------------------
+
+RISK_LEVEL_THRESHOLDS_PCT: dict[str, int] = {
+    "low": 20,
+    "moderate": 40,
+    "high": 60,
+    "very_high": 80,
+}
+
+HIGH_RISK_PROBABILITY_THRESHOLD: float = RISK_LEVEL_THRESHOLDS_PCT["high"] / 100.0
+
+MIN_PREDICTIONS_FOR_DRIFT: int = 20
+DRIFT_KS_P_THRESHOLD: float = 0.05
+DRIFT_TV_THRESHOLD: float = 0.20

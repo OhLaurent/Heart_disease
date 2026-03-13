@@ -252,6 +252,33 @@
             color: #74879a;
         }
 
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .status-pill.stable {
+            background: #dff5e5;
+            color: #1f6b3f;
+        }
+
+        .status-pill.drifted {
+            background: #fde3e3;
+            color: #8a1e1e;
+        }
+
+        .status-pill.insufficient_data,
+        .status-pill.baseline_unavailable {
+            background: #edf1f6;
+            color: #5b6a79;
+        }
+
         @media (max-width: 800px) {
             .form-row {
                 grid-template-columns: 1fr;
@@ -411,6 +438,31 @@
         </div>
 
         <div class="section">
+            <h2>Prediction Drift Session</h2>
+            <div class="history-meta">
+                <span id="driftSummary" class="muted">Loading drift report...</span>
+            </div>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature</th>
+                            <th>Type</th>
+                            <th>Baseline</th>
+                            <th>Current</th>
+                            <th>Score</th>
+                            <th>Status</th>
+                            <th>Sample Size</th>
+                        </tr>
+                    </thead>
+                    <tbody id="driftTableBody">
+                        <tr><td colspan="7" class="muted">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="section">
             <h2>Model Retraining</h2>
             <form id="retrainForm">
                 <div class="form-row">
@@ -440,7 +492,20 @@
         const modelFilter = document.getElementById('modelFilter');
         const historySummary = document.getElementById('historySummary');
         const historyTableBody = document.getElementById('historyTableBody');
+        const driftSummary = document.getElementById('driftSummary');
+        const driftTableBody = document.getElementById('driftTableBody');
         let currentActiveModelUri = null;
+        let hasInitializedModelFilter = false;
+        let appConfig = {
+            risk_levels_pct: {
+                low: 20,
+                moderate: 40,
+                high: 60,
+                very_high: 80,
+            },
+            high_risk_probability_threshold: 0.6,
+            min_predictions_for_drift: 20,
+        };
 
         function randomInt(min, max) {
             return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -532,9 +597,12 @@
             }
 
             modelFilter.innerHTML = options.join('');
-            if ([...modelFilter.options].some((option) => option.value === currentValue)) {
+            if (currentValue && [...modelFilter.options].some((option) => option.value === currentValue)) {
                 modelFilter.value = currentValue;
+            } else if (!hasInitializedModelFilter && activeModelVersion && [...modelFilter.options].some((option) => option.value === activeModelVersion)) {
+                modelFilter.value = activeModelVersion;
             }
+            hasInitializedModelFilter = true;
 
             renderActiveModel(activeModelVersion, currentActiveModelUri);
         }
@@ -570,27 +638,101 @@
             const data = await getJson(`/api/v1/predictions/history${query}`);
             currentActiveModelUri = data.active_model_uri;
             renderModelFilter(data.models, data.active_model_version);
-            renderHistoryTable(data.predictions);
-            historySummary.textContent = `${data.predictions.length} persisted predictions loaded.`;
+
+            let historyRows = data.predictions;
+            if (!query && modelFilter.value) {
+                const filtered = await getJson(`/api/v1/predictions/history?model_version=${encodeURIComponent(modelFilter.value)}`);
+                historyRows = filtered.predictions;
+            }
+
+            renderHistoryTable(historyRows);
+            historySummary.textContent = `${historyRows.length} persisted predictions loaded.`;
+
+            try {
+                await loadDrift();
+            } catch (error) {
+                driftSummary.textContent = `Failed to load drift: ${error.message}`;
+                driftTableBody.innerHTML = '<tr><td colspan="7" class="muted">Drift data unavailable for this model yet.</td></tr>';
+            }
+        }
+
+        function renderDriftTable(features) {
+            if (!features.length) {
+                driftTableBody.innerHTML = '<tr><td colspan="7" class="muted">No drift rows available.</td></tr>';
+                return;
+            }
+
+            driftTableBody.innerHTML = features.map((feature) => {
+                const score = feature.score === null || feature.score === undefined ? '-' : Number(feature.score).toFixed(4);
+                const statusClass = String(feature.status || '').toLowerCase();
+                return `
+                    <tr>
+                        <td>${feature.feature}</td>
+                        <td>${feature.feature_type}</td>
+                        <td>${feature.baseline_value}</td>
+                        <td>${feature.current_value}</td>
+                        <td>${score}</td>
+                        <td><span class="status-pill ${statusClass}">${feature.status}</span></td>
+                        <td>${feature.sample_size}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function loadDrift() {
+            const selectedVersion = modelFilter.value || null;
+            const query = selectedVersion ? `?model_version=${encodeURIComponent(selectedVersion)}` : '';
+            const data = await getJson(`/api/v1/predictions/drift${query}`);
+
+            renderDriftTable(data.features);
+
+            const perf = data.performance_summary || {};
+            const meanProbability = perf.mean_probability === null || perf.mean_probability === undefined
+                ? '-'
+                : `${(Number(perf.mean_probability) * 100).toFixed(1)}%`;
+            const highRiskPct = perf.high_risk_pct === null || perf.high_risk_pct === undefined
+                ? '-'
+                : `${Number(perf.high_risk_pct).toFixed(1)}%`;
+
+            const sampleText = `${data.sample_size}/${data.min_predictions_required}`;
+            driftSummary.textContent = `Model v${data.model_version} | Status: ${data.overall_status} | Samples: ${sampleText} | Mean risk: ${meanProbability} | High risk: ${highRiskPct}`;
+
+            if (!data.has_enough_data) {
+                driftSummary.textContent += ` | Need at least ${data.min_predictions_required} predictions to evaluate drift.`;
+            }
+        }
+
+        async function loadConfig() {
+            try {
+                appConfig = await getJson('/api/v1/config');
+            } catch (error) {
+                // Keep fallback defaults if config endpoint is unavailable.
+            }
         }
 
         function renderPredictionResponse(resultDiv, response) {
             const prediction = response.predictions[0];
             const probability = Number(prediction.probability);
             const percentage = Math.round(probability * 100);
+            const risk = appConfig.risk_levels_pct || {};
+            const low = Number(risk.low ?? 20);
+            const moderate = Number(risk.moderate ?? 40);
+            const high = Number(risk.high ?? 60);
+            const veryHigh = Number(risk.very_high ?? 80);
+            const highRiskThreshold = Number(appConfig.high_risk_probability_threshold ?? 0.6) * 100;
 
-            let riskLevel = 'Very Low < 20%';
-            if (percentage >= 80) {
-                riskLevel = 'Very High >= 80%';
-            } else if (percentage >= 60) {
-                riskLevel = 'High >= 60%';
-            } else if (percentage >= 40) {
-                riskLevel = 'Moderate >= 40%';
-            } else if (percentage >= 20) {
-                riskLevel = 'Low >= 20%';
+            let riskLevel = `Very Low < ${low}%`;
+            if (percentage >= veryHigh) {
+                riskLevel = `Very High >= ${veryHigh}%`;
+            } else if (percentage >= high) {
+                riskLevel = `High >= ${high}%`;
+            } else if (percentage >= moderate) {
+                riskLevel = `Moderate >= ${moderate}%`;
+            } else if (percentage >= low) {
+                riskLevel = `Low >= ${low}%`;
             }
 
-            const isHighRisk = percentage >= 60;
+            const isHighRisk = percentage >= highRiskThreshold;
             resultDiv.className = 'result ' + (isHighRisk ? 'positive' : 'negative');
             resultDiv.innerHTML = `
                 <div class="prediction-summary">
@@ -709,10 +851,15 @@
             }
         });
 
-        loadHistory().catch((error) => {
-            historySummary.textContent = `Failed to load history: ${error.message}`;
-            activeModelBadge.textContent = 'Active model: unavailable';
-        });
+        (async () => {
+            try {
+                await loadConfig();
+                await loadHistory();
+            } catch (error) {
+                historySummary.textContent = `Failed to load history: ${error.message}`;
+                driftSummary.textContent = 'Drift report unavailable until history is loaded.';
+            }
+        })();
     </script>
 </body>
 </html>

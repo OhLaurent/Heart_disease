@@ -196,9 +196,10 @@ class TestTrainingPipeline:
         
         params = {"n_iter": 10, "cv_folds": 5}
         metrics = {"test_roc_auc": 0.85, "test_accuracy": 0.80}
+        baseline_stats = {"performance": {}, "numerical_features": {}, "categorical_features": {}}
         
         run_id = pipeline._log_to_mlflow(
-            simple_pipeline, params, metrics, X_train_num, y_pred_proba
+            simple_pipeline, params, metrics, X_train_num, y_pred_proba, baseline_stats
         )
         
         assert run_id == "test_run_id_123"
@@ -207,13 +208,14 @@ class TestTrainingPipeline:
         mock_mlflow.sklearn.log_model.assert_called_once()
 
     @patch.object(TrainingPipeline, '_should_promote_model', return_value=False)
+    @patch.object(TrainingPipeline, '_calculate_baseline_stats')
     @patch.object(TrainingPipeline, '_evaluate_model')
     @patch.object(TrainingPipeline, '_tune_hyperparameters')
     @patch.object(TrainingPipeline, '_split_train_test')
     @patch.object(TrainingPipeline, '_prepare_features')
     @patch.object(TrainingPipeline, '_load_and_validate_data')
     @patch('heart_disease.pipelines.train.mlflow')
-    def test_run_configures_mlflow(self, mock_mlflow, mock_load, mock_prepare, mock_split, mock_tune, mock_evaluate, mock_should_promote):
+    def test_run_configures_mlflow(self, mock_mlflow, mock_load, mock_prepare, mock_split, mock_tune, mock_evaluate, mock_calculate_baseline_stats, mock_should_promote):
         """Test run applies shared MLflow tracking configuration."""
         sample_df = pd.DataFrame({"dummy": [1, 2]})
         X_train = pd.DataFrame({"x": [1, 2, 3, 4]})
@@ -233,6 +235,7 @@ class TestTrainingPipeline:
         search.best_params_ = {"classifier__C": 1.0}
         mock_tune.return_value = search
         mock_evaluate.return_value = {"test_roc_auc": 0.8}
+        mock_calculate_baseline_stats.return_value = {"performance": {}, "numerical_features": {}, "categorical_features": {}}
 
         mock_run = Mock()
         mock_run.__enter__ = Mock(return_value=mock_run)
@@ -326,8 +329,10 @@ class TestTrainingPipeline:
     @patch('heart_disease.pipelines.train.mlflow')
     @patch.object(TrainingPipeline, '_promote_model')
     @patch.object(TrainingPipeline, '_should_promote_model')
+    @patch.object(TrainingPipeline, '_calculate_baseline_stats')
     def test_run_full_pipeline(
         self, 
+        mock_calculate_baseline_stats,
         mock_should_promote, 
         mock_promote, 
         mock_mlflow,
@@ -343,6 +348,7 @@ class TestTrainingPipeline:
         mock_mlflow.active_run.return_value = mock_run
         mock_should_promote.return_value = True
         mock_promote.return_value = True
+        mock_calculate_baseline_stats.return_value = {"performance": {}, "numerical_features": {}, "categorical_features": {}}
         
         pipeline = TrainingPipeline(
             n_iter=5,  # Small for fast test

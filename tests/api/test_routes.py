@@ -265,6 +265,78 @@ class TestPredictEndpoint:
         assert data['predictions'][0]['output_data']['prediction'] == 'Presence'
         mock_store.list_predictions.assert_called_once_with(model_version='3')
 
+    @patch('heart_disease.api.routes.drift_report_for_model')
+    @patch('heart_disease.api.routes.prediction_store')
+    def test_prediction_drift_with_explicit_model(self, mock_store, mock_drift_report):
+        """Test drift endpoint using explicit model_version filter."""
+        mock_store.list_predictions.return_value = [{
+            'id': 1,
+            'created_at': '2026-03-12T12:00:00+00:00',
+            'request_id': 'req-1',
+            'patient_index': 0,
+            'model_version': '3',
+            'model_uri': 'models:/heart_disease_model/3',
+            'input_data': {'Age': 55},
+            'output_data': {'patient_id': 0, 'prediction': 'Presence', 'probability': 0.7},
+        }]
+        mock_drift_report.return_value = {
+            'model_version': '3',
+            'model_uri': 'models:/heart_disease_model/3',
+            'min_predictions_required': 20,
+            'sample_size': 1,
+            'has_enough_data': False,
+            'overall_status': 'insufficient_data',
+            'performance_summary': {'total_predictions': 1, 'mean_probability': 0.7, 'high_risk_pct': 100.0},
+            'features': [],
+        }
+
+        client = TestClient(app)
+        response = client.get('/api/v1/predictions/drift?model_version=3')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data['model_version'] == '3'
+        assert data['overall_status'] == 'insufficient_data'
+        mock_store.list_predictions.assert_called_once_with(model_version='3')
+        mock_drift_report.assert_called_once_with(records=mock_store.list_predictions.return_value, model_version='3')
+
+    @patch('heart_disease.api.routes.get_model_reference')
+    @patch('heart_disease.api.routes.drift_report_for_model')
+    @patch('heart_disease.api.routes.prediction_store')
+    def test_prediction_drift_defaults_to_active_model(self, mock_store, mock_drift_report, mock_get_model_reference):
+        """Test drift endpoint default model selection via active model reference."""
+        mock_get_model_reference.return_value = Mock(version='5', uri='models:/heart_disease_model/5')
+        mock_store.list_predictions.return_value = []
+        mock_drift_report.return_value = {
+            'model_version': '5',
+            'model_uri': 'models:/heart_disease_model/5',
+            'min_predictions_required': 20,
+            'sample_size': 0,
+            'has_enough_data': False,
+            'overall_status': 'insufficient_data',
+            'performance_summary': {'total_predictions': 0, 'mean_probability': None, 'high_risk_pct': None},
+            'features': [],
+        }
+
+        client = TestClient(app)
+        response = client.get('/api/v1/predictions/drift')
+
+        assert response.status_code == 200
+        assert response.json()['model_version'] == '5'
+        mock_store.list_predictions.assert_called_once_with(model_version='5')
+
+    def test_config_endpoint(self):
+        """Test config endpoint returns monitoring thresholds."""
+        client = TestClient(app)
+        response = client.get('/api/v1/config')
+
+        assert response.status_code == 200
+        data = response.json()
+        assert 'risk_levels_pct' in data
+        assert data['min_predictions_for_drift'] == 20
+        assert 'drift_ks_p_threshold' in data
+        assert 'drift_tv_threshold' in data
+
 
 class TestRetrainEndpoint:
     """Tests for /retrain endpoint."""

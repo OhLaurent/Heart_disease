@@ -255,6 +255,27 @@
             font-size: 0.92rem;
         }
 
+        .history-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .history-pagination button {
+            padding: 8px 12px;
+            font-size: 0.88rem;
+        }
+
+        .history-page-info {
+            color: #607387;
+            font-size: 0.88rem;
+            min-width: 92px;
+            text-align: center;
+        }
+
         .muted {
             color: #74879a;
         }
@@ -497,6 +518,11 @@
                 <div class="history-meta">
                     <span id="historySummary" class="muted">Loading history...</span>
                 </div>
+                <div class="history-pagination">
+                    <button type="button" id="historyPrevBtn">Previous</button>
+                    <span id="historyPageInfo" class="history-page-info">Page 1 of 1</span>
+                    <button type="button" id="historyNextBtn">Next</button>
+                </div>
                 <div class="table-wrapper">
                     <table>
                         <thead>
@@ -579,10 +605,16 @@
         const modelFilter = document.getElementById('modelFilter');
         const historySummary = document.getElementById('historySummary');
         const historyTableBody = document.getElementById('historyTableBody');
+        const historyPrevBtn = document.getElementById('historyPrevBtn');
+        const historyNextBtn = document.getElementById('historyNextBtn');
+        const historyPageInfo = document.getElementById('historyPageInfo');
         const driftSummary = document.getElementById('driftSummary');
         const driftTableBody = document.getElementById('driftTableBody');
+        const HISTORY_PAGE_SIZE = 10;
         let currentActiveModelUri = null;
         let hasInitializedModelFilter = false;
+        let allHistoryRows = [];
+        let currentHistoryPage = 1;
         let appConfig = {
             risk_levels_pct: {
                 low: 20,
@@ -732,6 +764,43 @@
             }).join('');
         }
 
+        function renderHistoryPagination() {
+            const totalRows = allHistoryRows.length;
+            const totalPages = Math.max(1, Math.ceil(totalRows / HISTORY_PAGE_SIZE));
+            const safePage = Math.min(currentHistoryPage, totalPages);
+            currentHistoryPage = safePage;
+
+            historyPrevBtn.disabled = safePage <= 1 || totalRows === 0;
+            historyNextBtn.disabled = safePage >= totalPages || totalRows === 0;
+            historyPageInfo.textContent = totalRows ? `Page ${safePage} of ${totalPages}` : 'Page 0 of 0';
+        }
+
+        function renderHistoryPage() {
+            const totalRows = allHistoryRows.length;
+            if (!totalRows) {
+                renderHistoryTable([]);
+                renderHistoryPagination();
+                historySummary.textContent = '0 persisted predictions loaded.';
+                return;
+            }
+
+            const totalPages = Math.max(1, Math.ceil(totalRows / HISTORY_PAGE_SIZE));
+            if (currentHistoryPage > totalPages) {
+                currentHistoryPage = totalPages;
+            }
+
+            const startIndex = (currentHistoryPage - 1) * HISTORY_PAGE_SIZE;
+            const endIndex = startIndex + HISTORY_PAGE_SIZE;
+            const visibleRows = allHistoryRows.slice(startIndex, endIndex);
+
+            renderHistoryTable(visibleRows);
+            renderHistoryPagination();
+
+            const startLabel = startIndex + 1;
+            const endLabel = Math.min(endIndex, totalRows);
+            historySummary.textContent = `${totalRows} persisted predictions loaded. Showing ${startLabel}-${endLabel}.`;
+        }
+
         async function loadHistory() {
             const query = modelFilter.value ? `?model_version=${encodeURIComponent(modelFilter.value)}` : '';
             const data = await getJson(`/api/v1/predictions/history${query}`);
@@ -744,8 +813,9 @@
                 historyRows = filtered.predictions;
             }
 
-            renderHistoryTable(historyRows);
-            historySummary.textContent = `${historyRows.length} persisted predictions loaded.`;
+            allHistoryRows = historyRows;
+            currentHistoryPage = 1;
+            renderHistoryPage();
 
             try {
                 await loadDrift();
@@ -909,6 +979,23 @@
             } catch (error) {
                 historySummary.textContent = `Failed to load history: ${error.message}`;
             }
+        });
+
+        historyPrevBtn.addEventListener('click', () => {
+            if (currentHistoryPage <= 1) {
+                return;
+            }
+            currentHistoryPage -= 1;
+            renderHistoryPage();
+        });
+
+        historyNextBtn.addEventListener('click', () => {
+            const totalPages = Math.max(1, Math.ceil(allHistoryRows.length / HISTORY_PAGE_SIZE));
+            if (currentHistoryPage >= totalPages) {
+                return;
+            }
+            currentHistoryPage += 1;
+            renderHistoryPage();
         });
 
         for (const button of tabButtons) {

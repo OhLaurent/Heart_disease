@@ -949,6 +949,9 @@
                 html += card('Train Samples', baseline.n_samples !== undefined && baseline.n_samples !== null ? String(baseline.n_samples) : '\u2014');
                 html += card('CV AUC', fmtNum(baseline.cv_mean_auc));
                 html += card('Test ROC-AUC', fmtNum(baseline.test_roc_auc));
+                html += card('Test Precision', fmtNum(baseline.test_precision));
+                html += card('Test Recall', fmtNum(baseline.test_recall));
+                html += card('Test F1', fmtNum(baseline.test_f1));
                 html += card('Positive Class', fmtPct(baseline.positive_class_proportion));
             }
 

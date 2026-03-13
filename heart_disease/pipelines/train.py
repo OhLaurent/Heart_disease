@@ -528,7 +528,8 @@ class TrainingPipeline:
     def _calculate_baseline_stats(
             self,
             X: pd.DataFrame, y: pd.Series,
-            search: RandomizedSearchCV | SearchResult) -> dict[str, float]:
+            search: RandomizedSearchCV | SearchResult,
+            metrics: dict[str, float] | None = None) -> dict[str, float]:
         """Calculate baseline statistics for the dataset.
 
         Parameters
@@ -556,7 +557,10 @@ class TrainingPipeline:
                     "mean_probability": y_pred_proba.mean(),
                     "high_risk_proportion": (y_pred_proba >= 0.5).mean(),
                     "cv_mean_auc": cv_mean_auc,
-                    "test_roc_auc": roc_auc_score(y, y_pred_proba),
+                    "test_roc_auc": metrics.get("test_roc_auc") if metrics else roc_auc_score(y, y_pred_proba),
+                    "test_precision": metrics.get("test_precision") if metrics else None,
+                    "test_recall": metrics.get("test_recall") if metrics else None,
+                    "test_f1": metrics.get("test_f1") if metrics else None,
                     "n_samples": len(y),
                 },
             "numerical_features": {},
@@ -643,7 +647,7 @@ class TrainingPipeline:
 
         # Evaluate baseline stats
         self._report_progress("baseline_stats", "Computing baseline statistics...", 92)
-        baseline_stats = self._calculate_baseline_stats(X, y, search)
+        baseline_stats = self._calculate_baseline_stats(X, y, search, metrics)
 
         # MLflow logging and promotion
         self._report_progress("logging", "Logging model and metrics to MLflow...", 96)

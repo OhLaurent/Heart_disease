@@ -76,6 +76,38 @@ class PredictionHistoryResponse(BaseModel):
     models: list[PredictionModelOption]
     predictions: list[PredictionHistoryEntry]
 
+
+class DriftFeatureResult(BaseModel):
+    """Drift result for a single feature."""
+    feature: str
+    feature_type: str
+    baseline_value: str
+    current_value: str
+    score: float | None = None
+    status: str
+    sample_size: int
+
+
+class PredictionDriftResponse(BaseModel):
+    """Drift report for persisted predictions of a model version."""
+    model_version: str
+    model_uri: str
+    min_predictions_required: int
+    sample_size: int
+    has_enough_data: bool
+    overall_status: str
+    performance_summary: dict[str, Any]
+    features: list[DriftFeatureResult]
+
+
+class AppConfigResponse(BaseModel):
+    """Client-facing thresholds and constants used in monitoring/UI."""
+    risk_levels_pct: dict[str, int]
+    high_risk_probability_threshold: float
+    min_predictions_for_drift: int
+    drift_ks_p_threshold: float
+    drift_tv_threshold: float
+
 class RetrainRequest(BaseModel):
     """Configuration for the training pipeline."""
     n_iter: int = Field(20, ge=1, description="RandomizedSearchCV iterations")

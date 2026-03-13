@@ -4,9 +4,19 @@ import pandas as pd
 
 from fastapi import APIRouter, Request, HTTPException
 
-from heart_disease.constants import POSITIVE_TARGET_LABEL
+from heart_disease.constants import (
+    DRIFT_KS_P_THRESHOLD,
+    DRIFT_TV_THRESHOLD,
+    HIGH_RISK_PROBABILITY_THRESHOLD,
+    MIN_PREDICTIONS_FOR_DRIFT,
+    POSITIVE_TARGET_LABEL,
+    RISK_LEVEL_THRESHOLDS_PCT,
+)
+from heart_disease.api.drift_monitor import drift_report_for_model
 from heart_disease.api.prediction_store import PredictionStore
 from heart_disease.api.schemas import (
+    AppConfigResponse,
+    PredictionDriftResponse,
     PredictionHistoryEntry,
     PredictionHistoryResponse,
     PredictionModelOption,
@@ -110,15 +120,22 @@ async def prediction_history(model_version: str | None = None) -> PredictionHist
     records = prediction_store.list_predictions(model_version=model_version)
     model_rows = prediction_store.list_models()
 
+    active_model_version: str | None = None
+    active_model_uri: str | None = None
     try:
         active_model = get_model_reference()
+        active_model_version = active_model.version
+        active_model_uri = active_model.uri
     except ValueError:
-        active_model = None
+        if model_rows:
+            # Fallback to latest persisted model when MLflow active alias is unavailable.
+            active_model_version = model_rows[0]["model_version"]
+            active_model_uri = model_rows[0]["model_uri"]
 
     models = []
     seen_versions = set()
     for model_row in model_rows:
-        is_active = active_model is not None and model_row["model_version"] == active_model.version
+        is_active = active_model_version is not None and model_row["model_version"] == active_model_version
         models.append(PredictionModelOption(
             model_version=model_row["model_version"],
             model_uri=model_row["model_uri"],
@@ -128,20 +145,80 @@ async def prediction_history(model_version: str | None = None) -> PredictionHist
         ))
         seen_versions.add(model_row["model_version"])
 
-    if active_model is not None and active_model.version not in seen_versions:
+    if active_model_version is not None and active_model_version not in seen_versions:
         models.insert(0, PredictionModelOption(
-            model_version=active_model.version,
-            model_uri=active_model.uri,
+            model_version=active_model_version,
+            model_uri=active_model_uri or "",
             prediction_count=0,
             latest_prediction_at=None,
             is_active=True,
         ))
 
     return PredictionHistoryResponse(
-        active_model_version=active_model.version if active_model is not None else None,
-        active_model_uri=active_model.uri if active_model is not None else None,
+        active_model_version=active_model_version,
+        active_model_uri=active_model_uri,
         models=models,
         predictions=[PredictionHistoryEntry(**record) for record in records],
+    )
+
+
+@router.get(
+        "/predictions/drift",
+        response_model=PredictionDriftResponse,
+        tags=["Prediction"],
+        summary="Compute prediction drift for a model version",)
+async def prediction_drift(model_version: str | None = None) -> PredictionDriftResponse:
+    """Return feature drift report for persisted predictions of one model version."""
+    selected_model_version = model_version
+
+    if selected_model_version is None:
+        try:
+            selected_model_version = get_model_reference().version
+        except ValueError:
+            model_rows = prediction_store.list_models()
+            if model_rows:
+                selected_model_version = model_rows[0]["model_version"]
+            else:
+                raise HTTPException(status_code=404, detail="No model available for drift report")
+
+    records = prediction_store.list_predictions(model_version=selected_model_version)
+
+    try:
+        report = drift_report_for_model(records=records, model_version=selected_model_version)
+    except Exception as e:
+        logger.warning("Drift report fallback for model %s: %s", selected_model_version, str(e))
+        model_uri = records[0]["model_uri"] if records else f"models:/heart_disease_model/{selected_model_version}"
+        report = {
+            "model_version": str(selected_model_version),
+            "model_uri": model_uri,
+            "min_predictions_required": MIN_PREDICTIONS_FOR_DRIFT,
+            "sample_size": len(records),
+            "has_enough_data": len(records) >= MIN_PREDICTIONS_FOR_DRIFT,
+            "overall_status": "baseline_unavailable",
+            "performance_summary": {
+                "total_predictions": len(records),
+                "mean_probability": None,
+                "high_risk_pct": None,
+            },
+            "features": [],
+        }
+
+    return PredictionDriftResponse(**report)
+
+
+@router.get(
+        "/config",
+        response_model=AppConfigResponse,
+        tags=["Configuration"],
+        summary="Get runtime threshold configuration",)
+async def app_config() -> AppConfigResponse:
+    """Expose UI/server thresholds from constants in one place."""
+    return AppConfigResponse(
+        risk_levels_pct=RISK_LEVEL_THRESHOLDS_PCT,
+        high_risk_probability_threshold=HIGH_RISK_PROBABILITY_THRESHOLD,
+        min_predictions_for_drift=MIN_PREDICTIONS_FOR_DRIFT,
+        drift_ks_p_threshold=DRIFT_KS_P_THRESHOLD,
+        drift_tv_threshold=DRIFT_TV_THRESHOLD,
     )
 
 @router.post(

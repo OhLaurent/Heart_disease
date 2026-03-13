@@ -11,6 +11,7 @@ from typing import Any
 
 import mlflow
 import pandas as pd
+import numpy as np
 from mlflow.models import infer_signature
 from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import LogisticRegression
@@ -315,6 +316,7 @@ class TrainingPipeline:
         metrics: dict[str, float],
         X_train: pd.DataFrame,
         y_pred_proba: pd.Series,
+        baseline_stats: dict[str, Any],
     ) -> str:
         """Log model, parameters, and metrics to MLflow.
 
@@ -330,6 +332,8 @@ class TrainingPipeline:
             Training features (for signature inference).
         y_pred_proba : pd.Series
             Prediction probabilities (for signature inference).
+        baseline_stats : dict
+            Baseline statistics for the features.
 
         Returns
         -------
@@ -346,6 +350,8 @@ class TrainingPipeline:
             signature=signature,
             registered_model_name=MLFLOW_MODEL_NAME,
         )
+
+        mlflow.log_dict(baseline_stats, "baseline_stats.json")
 
         return mlflow.active_run().info.run_id
 
@@ -449,6 +455,73 @@ class TrainingPipeline:
         # Promote if new model is better
         return new_metric > active_metric
 
+
+    # ---------------------------------------------------------------------------
+    # Baseline statistics helper
+    # ---------------------------------------------------------------------------
+
+    def _calculate_baseline_stats(
+            self,
+            X: pd.DataFrame, y: pd.Series,
+            search: RandomizedSearchCV) -> dict[str, float]:
+        """Calculate baseline statistics for the dataset.
+
+        Parameters
+        ----------
+        X : pd.DataFrame
+            Feature matrix.
+        y : pd.Series
+            Target vector.
+        search : RandomizedSearchCV or None, optional
+            Hyperparameter search object, by default None.
+
+        Returns
+        -------
+        dict[str, float]
+            Dictionary containing baseline statistics.
+        """
+        best_model = search.best_estimator_
+        cv_mean_auc = search.best_score_
+        y_pred_proba = best_model.predict_proba(X)[:, 1]
+
+        baseline_stats = {
+            "performance":
+                {
+                    "positive_class_proportion": y.mean(),
+                    "mean_probability": y_pred_proba.mean(),
+                    "high_risk_proportion": (y_pred_proba >= 0.5).mean(),
+                    "cv_mean_auc": cv_mean_auc,
+                    "test_roc_auc": roc_auc_score(y, y_pred_proba),
+                    "n_samples": len(y),
+                },
+            "numerical_features": {},
+            "categorical_features": {},
+        }
+
+        for col in NUMERICAL_COLUMNS:
+            if col not in X.columns:
+                continue
+            series = X[col].dropna().astype(float)
+            counts, bin_edges = np.histogram(series, bins=20)
+            baseline_stats["numerical_features"][col] = {
+                "mean": float(series.mean()),
+                "std": float(series.std(ddof=1)),
+                "min": float(series.min()),
+                "max": float(series.max()),
+                "histogram": {
+                    "counts": counts.tolist(),
+                    "bin_edges": bin_edges.tolist(),
+                },
+            }
+
+        for col in CATEGORICAL_COLUMNS:
+            if col not in X.columns:
+                continue
+            vc = X[col].value_counts(normalize=True, dropna=False)
+            baseline_stats["categorical_features"][col] = {str(k): float(v) for k, v in vc.items()}
+
+        return baseline_stats
+
     # -----------------------------------------------------------------------
     # Main training orchestration
     # -----------------------------------------------------------------------
@@ -495,6 +568,9 @@ class TrainingPipeline:
         y_pred_proba = best_model.predict_proba(X_test)[:, 1]
         metrics = self._evaluate_model(best_model, X_test, y_test, search.best_score_)
 
+        # Evaluate baseline stats
+        baseline_stats = self._calculate_baseline_stats(X, y, search)
+
         # MLflow logging and promotion
         with mlflow.start_run() as run:
             # Prepare parameters to log
@@ -506,7 +582,7 @@ class TrainingPipeline:
                 **{f"best_{k}": v for k, v in search.best_params_.items()},
             }
 
-            run_id = self._log_to_mlflow(best_model, params, metrics, X_train, y_pred_proba)
+            run_id = self._log_to_mlflow(best_model, params, metrics, X_train, y_pred_proba, baseline_stats)
 
             # Decide on promotion
             promote = self._should_promote_model(metrics["test_roc_auc"])

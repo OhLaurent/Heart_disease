@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "heart-disease"
 version = "0.1.0"
-description = "Add your description here"
+description = "A production like ML project for heart disease risk prediction with model serving, monitoring, and retraining."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

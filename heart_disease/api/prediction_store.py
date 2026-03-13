@@ -35,6 +35,15 @@ class PredictionStore:
             )
             conn.commit()
 
+    def count_model_predictions(self, model_version: str) -> int:
+        self.initialize()
+        with sqlite3.connect(self.db_path) as conn:
+            result = conn.execute(
+                "SELECT COUNT(*) FROM prediction_history WHERE model_version = ?",
+                (model_version,),
+            ).fetchone()
+        return int(result[0]) if result else 0
+
     def save_prediction_run(
         self,
         *,
@@ -47,11 +56,13 @@ class PredictionStore:
         created_at = datetime.now(UTC).isoformat()
         request_id = str(uuid.uuid4())
 
+        predictions_count = self.count_model_predictions(model_version)
+        print(f"Prediction run for model version '{model_version}' has {predictions_count} previous predictions.")
         rows = [
             (
                 created_at,
                 request_id,
-                index,
+                predictions_count + index,
                 model_version,
                 model_uri,
                 json.dumps(input_row),
@@ -88,7 +99,7 @@ class PredictionStore:
         if model_version:
             query += "WHERE model_version = ? "
             params = (model_version,)
-        query += "ORDER BY created_at DESC, id DESC"
+        query += "ORDER BY created_at DESC, patient_index DESC"
 
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row

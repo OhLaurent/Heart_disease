@@ -249,7 +249,7 @@ class TestPredictionHistorySchemas:
             model_version="3",
             model_uri="models:/heart_disease_model@active",
             input_data={"Age": 55},
-            output_data={"patient_id": 0, "prediction": "Presence", "probability": 0.7},
+            output_data={"prediction": "Presence", "probability": 0.7},
         )
         assert entry.model_version == "3"
 

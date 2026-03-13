@@ -11,7 +11,7 @@ def test_save_and_list_predictions(tmp_path: Path):
 
     store.save_prediction_run(
         inputs=[{"Age": 55, "Sex": 1}],
-        outputs=[{"patient_id": 0, "prediction": "Presence", "probability": 0.7}],
+        outputs=[{"prediction": "Presence", "probability": 0.7}],
         model_version="3",
         model_uri="models:/heart_disease_model@active",
     )
@@ -31,8 +31,8 @@ def test_list_models_aggregates_prediction_counts(tmp_path: Path):
     store.save_prediction_run(
         inputs=[{"Age": 55}, {"Age": 60}],
         outputs=[
-            {"patient_id": 0, "prediction": "Presence", "probability": 0.7},
-            {"patient_id": 1, "prediction": "Absence", "probability": 0.3},
+            {"prediction": "Presence", "probability": 0.7},
+            {"prediction": "Absence", "probability": 0.3},
         ],
         model_version="3",
         model_uri="models:/heart_disease_model@active",

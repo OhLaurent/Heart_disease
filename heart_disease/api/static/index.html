@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Heart Disease Prediction API</title>
+    <title>Heart Disease Prediction</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext x='50%25' y='50%25' font-size='50' text-anchor='middle' dominant-baseline='central'%3E%F0%9F%AB%80%3C/text%3E%3C/svg%3E">
     <style>
         * {
             margin: 0;
@@ -30,6 +31,12 @@
             text-align: center;
         }
 
+        .title-heart {
+            margin-right: 8px;
+            font-size: 1.15em;
+            vertical-align: -0.06em;
+        }
+
         .section {
             background: white;
             border-radius: 10px;
@@ -53,6 +60,13 @@
             gap: 16px;
             flex-wrap: wrap;
             margin-bottom: 16px;
+        }
+
+        .toolbar-grid {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) minmax(260px, 320px);
+            gap: 16px;
+            align-items: end;
         }
 
         .model-badge {
@@ -248,8 +262,137 @@
             font-size: 0.92rem;
         }
 
+        .history-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .history-pagination button {
+            padding: 8px 12px;
+            font-size: 0.88rem;
+        }
+
+        .history-page-info {
+            color: #607387;
+            font-size: 0.88rem;
+            min-width: 92px;
+            text-align: center;
+        }
+
         .muted {
             color: #74879a;
+        }
+
+        .drift-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .drift-card-group-label {
+            flex: 0 0 100%;
+            font-size: 0.74rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #74879a;
+            margin-top: 8px;
+        }
+
+        .drift-card-group-label:first-child {
+            margin-top: 0;
+        }
+
+        .drift-card {
+            background: #f4f8fb;
+            border: 1px solid #e1e7ef;
+            border-left: 3px solid #d3dce6;
+            border-radius: 8px;
+            padding: 8px 12px;
+            min-width: 100px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .drift-card.status-stable { border-left-color: #27ae60; }
+        .drift-card.status-drifted { border-left-color: #e74c3c; }
+        .drift-card.status-insufficient_data,
+        .drift-card.status-baseline_unavailable { border-left-color: #bdc3c7; }
+
+        .drift-card-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #74879a;
+        }
+
+        .drift-card-value {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #243043;
+        }
+
+        .drift-card-value--small {
+            font-size: 0.78rem;
+            font-weight: 400;
+            word-break: break-all;
+            color: #4a6175;
+        }
+
+        .tab-shell {
+            background: white;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 25px rgba(31, 49, 70, 0.08);
+        }
+
+        .tab-nav {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            padding: 4px;
+            background: #edf4fa;
+            border-radius: 999px;
+        }
+
+        .tab-button {
+            appearance: none;
+            border: none;
+            background: transparent;
+            color: #42617c;
+            padding: 12px 18px;
+            border-radius: 999px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+        }
+
+        .tab-button:hover {
+            background: rgba(52, 152, 219, 0.12);
+            color: #1d5f8f;
+        }
+
+        .tab-button.is-active {
+            background: white;
+            color: #1d5f8f;
+            box-shadow: 0 8px 18px rgba(31, 49, 70, 0.08);
+        }
+
+        .tab-panel {
+            display: none;
+        }
+
+        .tab-panel.is-active {
+            display: block;
         }
 
         .status-pill {
@@ -288,17 +431,29 @@
                 flex-direction: column;
                 align-items: stretch;
             }
+
+            .toolbar-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tab-nav {
+                border-radius: 16px;
+            }
+
+            .tab-button {
+                width: 100%;
+                text-align: left;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Heart Disease Prediction API</h1>
+        <h1><span class="title-heart" aria-hidden="true">🫀</span>Heart Disease Prediction</h1>
 
         <div class="section">
             <div class="section-header">
                 <h2>Patient Prediction</h2>
-                <div id="activeModelBadge" class="model-badge">Active model: loading...</div>
             </div>
             <form id="predictForm">
                 <div class="form-row">
@@ -391,111 +546,141 @@
         </div>
 
         <div class="section">
-            <h2>Populate History With Random Predictions</h2>
-            <form id="randomBatchForm">
-                <div class="actions-row">
-                    <div class="form-group">
-                        <label for="randomCount">Number of random patients</label>
-                        <input type="number" id="randomCount" name="randomCount" min="1" max="250" value="10" required>
-                    </div>
-                    <button type="submit" id="randomBatchBtn">Generate And Predict</button>
-                </div>
-                <div id="randomBatchResult" class="result"></div>
-            </form>
-        </div>
-
-        <div class="section">
-            <div class="section-header">
-                <h2>Prediction History</h2>
-                <div class="form-group" style="min-width: 260px; margin-bottom: 0;">
+            <div class="toolbar-grid">
+                <div id="activeModelBadge" class="model-badge">Active model: loading...</div>
+                <div class="form-group" style="margin-bottom: 0;">
                     <label for="modelFilter">Filter by model</label>
                     <select id="modelFilter"></select>
                 </div>
             </div>
-            <div class="history-meta">
-                <span id="historySummary" class="muted">Loading history...</span>
-            </div>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Created</th>
-                            <th>Model</th>
-                            <th>Patient</th>
-                            <th>Prediction</th>
-                            <th>Probability</th>
-                            <th>Age</th>
-                            <th>BP</th>
-                            <th>Cholesterol</th>
-                            <th>Input Snapshot</th>
-                        </tr>
-                    </thead>
-                    <tbody id="historyTableBody">
-                        <tr><td colspan="9" class="muted">Loading...</td></tr>
-                    </tbody>
-                </table>
+        </div>
+
+        <div class="tab-shell">
+            <div class="tab-nav" role="tablist" aria-label="Frontend sections">
+                <button type="button" class="tab-button is-active" id="predictionsTabButton" data-tab-target="predictionsTabPanel" role="tab" aria-selected="true" aria-controls="predictionsTabPanel">Predictions & History</button>
+                <button type="button" class="tab-button" id="monitoringTabButton" data-tab-target="monitoringTabPanel" role="tab" aria-selected="false" aria-controls="monitoringTabPanel">Drift & Retraining</button>
             </div>
         </div>
 
-        <div class="section">
-            <h2>Prediction Drift Session</h2>
-            <div class="history-meta">
-                <span id="driftSummary" class="muted">Loading drift report...</span>
+        <div id="predictionsTabPanel" class="tab-panel is-active" role="tabpanel" aria-labelledby="predictionsTabButton">
+            <div class="section">
+                <h2>Populate History With Random Predictions</h2>
+                <form id="randomBatchForm">
+                    <div class="actions-row">
+                        <div class="form-group">
+                            <label for="randomCount">Number of random patients</label>
+                            <input type="number" id="randomCount" name="randomCount" min="1" max="250" value="10" required>
+                        </div>
+                        <button type="submit" id="randomBatchBtn">Generate And Predict</button>
+                    </div>
+                    <div id="randomBatchResult" class="result"></div>
+                </form>
             </div>
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Feature</th>
-                            <th>Type</th>
-                            <th>Baseline</th>
-                            <th>Current</th>
-                            <th>Score</th>
-                            <th>Status</th>
-                            <th>Sample Size</th>
-                        </tr>
-                    </thead>
-                    <tbody id="driftTableBody">
-                        <tr><td colspan="7" class="muted">Loading...</td></tr>
-                    </tbody>
-                </table>
+
+            <div class="section">
+                <div class="section-header">
+                    <h2>Prediction History</h2>
+                </div>
+                <div class="history-meta">
+                    <span id="historySummary" class="muted">Loading history...</span>
+                </div>
+                <div class="history-pagination">
+                    <button type="button" id="historyPrevBtn">Previous</button>
+                    <span id="historyPageInfo" class="history-page-info">Page 1 of 1</span>
+                    <button type="button" id="historyNextBtn">Next</button>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Created</th>
+                                <th>Model</th>
+                                <th>Patient</th>
+                                <th>Prediction</th>
+                                <th>Probability</th>
+                                <th>Age</th>
+                                <th>BP</th>
+                                <th>Cholesterol</th>
+                                <th>Input Snapshot</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr><td colspan="9" class="muted">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
-        <div class="section">
-            <h2>Model Retraining</h2>
-            <form id="retrainForm">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="nIter">Number of Iterations</label>
-                        <input type="number" id="nIter" name="n_iter" required min="1" value="20">
-                    </div>
-                    <div class="form-group">
-                        <label for="cvSplits">CV Splits</label>
-                        <input type="number" id="cvSplits" name="cv_splits" required min="2" value="5">
-                    </div>
+        <div id="monitoringTabPanel" class="tab-panel" role="tabpanel" aria-labelledby="monitoringTabButton">
+            <div class="section">
+                <h2>Prediction Drift Session</h2>
+                <div id="driftSummary"><span class="muted">Loading drift report...</span></div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Feature</th>
+                                <th>Type</th>
+                                <th>Baseline</th>
+                                <th>Current</th>
+                                <th>Score</th>
+                                <th>Status</th>
+                                <th>Sample Size</th>
+                            </tr>
+                        </thead>
+                        <tbody id="driftTableBody">
+                            <tr><td colspan="7" class="muted">Loading...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
+            </div>
 
-                <div class="checkbox-group">
-                    <input type="checkbox" id="forceReplacement" name="force_replacement">
-                    <label for="forceReplacement">Force replacement if model does not outperform current active model</label>
-                </div>
+            <div class="section">
+                <h2>Model Retraining</h2>
+                <form id="retrainForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="nIter">Number of Iterations</label>
+                            <input type="number" id="nIter" name="n_iter" required min="1" value="20">
+                        </div>
+                        <div class="form-group">
+                            <label for="cvSplits">CV Splits</label>
+                            <input type="number" id="cvSplits" name="cv_splits" required min="2" value="5">
+                        </div>
+                    </div>
 
-                <button type="submit" id="retrainBtn">Start Retraining</button>
-                <div id="retrainResult" class="result"></div>
-            </form>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="forceReplacement" name="force_replacement">
+                        <label for="forceReplacement">Force replacement if model does not outperform current active model</label>
+                    </div>
+
+                    <button type="submit" id="retrainBtn">Start Retraining</button>
+                    <div id="retrainResult" class="result"></div>
+                </form>
+            </div>
         </div>
     </div>
 
     <script>
         const activeModelBadge = document.getElementById('activeModelBadge');
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabPanels = document.querySelectorAll('.tab-panel');
         const modelFilter = document.getElementById('modelFilter');
         const historySummary = document.getElementById('historySummary');
         const historyTableBody = document.getElementById('historyTableBody');
+        const historyPrevBtn = document.getElementById('historyPrevBtn');
+        const historyNextBtn = document.getElementById('historyNextBtn');
+        const historyPageInfo = document.getElementById('historyPageInfo');
         const driftSummary = document.getElementById('driftSummary');
         const driftTableBody = document.getElementById('driftTableBody');
+        const HISTORY_PAGE_SIZE = 10;
+        const RETRAIN_POLL_INTERVAL_MS = 1200;
         let currentActiveModelUri = null;
         let hasInitializedModelFilter = false;
+        let allHistoryRows = [];
+        let currentHistoryPage = 1;
+        let retrainPollTimer = null;
         let appConfig = {
             risk_levels_pct: {
                 low: 20,
@@ -579,6 +764,18 @@
             return response.json();
         }
 
+        function setActiveTab(targetId) {
+            for (const button of tabButtons) {
+                const isActive = button.dataset.tabTarget === targetId;
+                button.classList.toggle('is-active', isActive);
+                button.setAttribute('aria-selected', String(isActive));
+            }
+
+            for (const panel of tabPanels) {
+                panel.classList.toggle('is-active', panel.id === targetId);
+            }
+        }
+
         function renderActiveModel(version, uri) {
             if (!version || !uri) {
                 activeModelBadge.textContent = 'Active model: unavailable';
@@ -621,7 +818,7 @@
                     <tr>
                         <td>${new Date(entry.created_at).toLocaleString()}</td>
                         <td>v${entry.model_version}</td>
-                        <td>#${output.patient_id}</td>
+                        <td>#${entry.patient_index}</td>
                         <td>${output.prediction}</td>
                         <td>${percent}%</td>
                         <td>${input.Age}</td>
@@ -631,6 +828,43 @@
                     </tr>
                 `;
             }).join('');
+        }
+
+        function renderHistoryPagination() {
+            const totalRows = allHistoryRows.length;
+            const totalPages = Math.max(1, Math.ceil(totalRows / HISTORY_PAGE_SIZE));
+            const safePage = Math.min(currentHistoryPage, totalPages);
+            currentHistoryPage = safePage;
+
+            historyPrevBtn.disabled = safePage <= 1 || totalRows === 0;
+            historyNextBtn.disabled = safePage >= totalPages || totalRows === 0;
+            historyPageInfo.textContent = totalRows ? `Page ${safePage} of ${totalPages}` : 'Page 0 of 0';
+        }
+
+        function renderHistoryPage() {
+            const totalRows = allHistoryRows.length;
+            if (!totalRows) {
+                renderHistoryTable([]);
+                renderHistoryPagination();
+                historySummary.textContent = '0 persisted predictions loaded.';
+                return;
+            }
+
+            const totalPages = Math.max(1, Math.ceil(totalRows / HISTORY_PAGE_SIZE));
+            if (currentHistoryPage > totalPages) {
+                currentHistoryPage = totalPages;
+            }
+
+            const startIndex = (currentHistoryPage - 1) * HISTORY_PAGE_SIZE;
+            const endIndex = startIndex + HISTORY_PAGE_SIZE;
+            const visibleRows = allHistoryRows.slice(startIndex, endIndex);
+
+            renderHistoryTable(visibleRows);
+            renderHistoryPagination();
+
+            const startLabel = startIndex + 1;
+            const endLabel = Math.min(endIndex, totalRows);
+            historySummary.textContent = `${totalRows} persisted predictions loaded. Showing ${startLabel}-${endLabel}.`;
         }
 
         async function loadHistory() {
@@ -645,13 +879,14 @@
                 historyRows = filtered.predictions;
             }
 
-            renderHistoryTable(historyRows);
-            historySummary.textContent = `${historyRows.length} persisted predictions loaded.`;
+            allHistoryRows = historyRows;
+            currentHistoryPage = 1;
+            renderHistoryPage();
 
             try {
                 await loadDrift();
             } catch (error) {
-                driftSummary.textContent = `Failed to load drift: ${error.message}`;
+                driftSummary.innerHTML = `<span class="muted">Failed to load drift: ${error.message}</span>`;
                 driftTableBody.innerHTML = '<tr><td colspan="7" class="muted">Drift data unavailable for this model yet.</td></tr>';
             }
         }
@@ -679,27 +914,60 @@
             }).join('');
         }
 
+        function renderDriftCards(data) {
+            const perf = data.performance_summary || {};
+            const baseline = perf.baseline || null;
+            const statusClass = String(data.overall_status || '').toLowerCase();
+
+            function fmtPct(v) {
+                return v === null || v === undefined ? '\u2014' : `${(Number(v) * 100).toFixed(1)}%`;
+            }
+            function fmtNum(v, dec = 4) {
+                return v === null || v === undefined ? '\u2014' : Number(v).toFixed(dec);
+            }
+            function card(label, value, extra = '', small = false) {
+                return `<div class="drift-card ${extra}"><div class="drift-card-label">${label}</div><div class="drift-card-value${small ? ' drift-card-value--small' : ''}">${value}</div></div>`;
+            }
+            function groupLabel(text) {
+                return `<div class="drift-card-group-label">${text}</div>`;
+            }
+
+            let html = '<div class="drift-cards">';
+
+            html += groupLabel('Session');
+            html += card('Overall Status', data.overall_status || '\u2014', `status-${statusClass}`);
+            html += card('Samples', `${data.sample_size} / ${data.min_predictions_required}`);
+            html += card('Mean Risk', fmtPct(perf.mean_probability));
+            html += card('High Risk', perf.high_risk_pct === null || perf.high_risk_pct === undefined ? '\u2014' : `${Number(perf.high_risk_pct).toFixed(1)}%`);
+
+            html += groupLabel('Model');
+            html += card('Version', `v${data.model_version}`);
+            html += card('URI', data.model_uri || '\u2014', '', true);
+
+            if (baseline) {
+                html += groupLabel('Training Baseline');
+                html += card('Train Samples', baseline.n_samples !== undefined && baseline.n_samples !== null ? String(baseline.n_samples) : '\u2014');
+                html += card('CV AUC', fmtNum(baseline.cv_mean_auc));
+                html += card('Test ROC-AUC', fmtNum(baseline.test_roc_auc));
+                html += card('Positive Class', fmtPct(baseline.positive_class_proportion));
+            }
+
+            html += '</div>';
+
+            if (!data.has_enough_data) {
+                html += `<p class="muted" style="font-size:0.88rem;margin-bottom:12px;">Need at least ${data.min_predictions_required} predictions to evaluate drift.</p>`;
+            }
+
+            driftSummary.innerHTML = html;
+        }
+
         async function loadDrift() {
             const selectedVersion = modelFilter.value || null;
             const query = selectedVersion ? `?model_version=${encodeURIComponent(selectedVersion)}` : '';
             const data = await getJson(`/api/v1/predictions/drift${query}`);
 
             renderDriftTable(data.features);
-
-            const perf = data.performance_summary || {};
-            const meanProbability = perf.mean_probability === null || perf.mean_probability === undefined
-                ? '-'
-                : `${(Number(perf.mean_probability) * 100).toFixed(1)}%`;
-            const highRiskPct = perf.high_risk_pct === null || perf.high_risk_pct === undefined
-                ? '-'
-                : `${Number(perf.high_risk_pct).toFixed(1)}%`;
-
-            const sampleText = `${data.sample_size}/${data.min_predictions_required}`;
-            driftSummary.textContent = `Model v${data.model_version} | Status: ${data.overall_status} | Samples: ${sampleText} | Mean risk: ${meanProbability} | High risk: ${highRiskPct}`;
-
-            if (!data.has_enough_data) {
-                driftSummary.textContent += ` | Need at least ${data.min_predictions_required} predictions to evaluate drift.`;
-            }
+            renderDriftCards(data);
         }
 
         async function loadConfig() {
@@ -708,6 +976,75 @@
             } catch (error) {
                 // Keep fallback defaults if config endpoint is unavailable.
             }
+        }
+
+        function stopRetrainPolling() {
+            if (retrainPollTimer !== null) {
+                clearInterval(retrainPollTimer);
+                retrainPollTimer = null;
+            }
+        }
+
+        function renderRetrainProgress(resultDiv, status) {
+            const elapsed = Number(status.elapsed_seconds || 0).toFixed(1);
+            const progress = Number(status.progress_pct || 0);
+            resultDiv.className = 'result success';
+            resultDiv.innerHTML = `
+                <strong>Retraining Status:</strong> ${status.status}<br>
+                <strong>Stage:</strong> ${status.stage}<br>
+                <strong>Progress:</strong> ${progress}%<br>
+                <strong>Elapsed:</strong> ${elapsed}s<br>
+                <strong>Details:</strong> ${status.message}
+            `;
+            resultDiv.style.display = 'block';
+        }
+
+        async function pollRetrainJob(jobId, resultDiv, retrainBtn) {
+            const update = async () => {
+                const status = await getJson(`/api/v1/retrain/jobs/${encodeURIComponent(jobId)}`);
+
+                if (status.status === 'completed') {
+                    stopRetrainPolling();
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>Retraining Status:</strong> ${status.status}<br>
+                        <strong>Model URI:</strong> ${status.model_uri || '-'}<br>
+                        ${status.cv_mean_auc !== null && status.cv_mean_auc !== undefined ? `<strong>CV Mean AUC:</strong> ${status.cv_mean_auc}<br>` : ''}
+                        <strong>Message:</strong> ${status.message}
+                    `;
+                    resultDiv.style.display = 'block';
+                    retrainBtn.disabled = false;
+                    retrainBtn.textContent = 'Start Retraining';
+                    await loadHistory();
+                    return;
+                }
+
+                if (status.status === 'failed') {
+                    stopRetrainPolling();
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `<strong>Training failed:</strong> ${status.error || status.message}`;
+                    resultDiv.style.display = 'block';
+                    retrainBtn.disabled = false;
+                    retrainBtn.textContent = 'Start Retraining';
+                    return;
+                }
+
+                renderRetrainProgress(resultDiv, status);
+            };
+
+            await update();
+            retrainPollTimer = setInterval(async () => {
+                try {
+                    await update();
+                } catch (error) {
+                    stopRetrainPolling();
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `<strong>Error while polling training progress:</strong> ${error.message}`;
+                    resultDiv.style.display = 'block';
+                    retrainBtn.disabled = false;
+                    retrainBtn.textContent = 'Start Retraining';
+                }
+            }, RETRAIN_POLL_INTERVAL_MS);
         }
 
         function renderPredictionResponse(resultDiv, response) {
@@ -812,6 +1149,29 @@
             }
         });
 
+        historyPrevBtn.addEventListener('click', () => {
+            if (currentHistoryPage <= 1) {
+                return;
+            }
+            currentHistoryPage -= 1;
+            renderHistoryPage();
+        });
+
+        historyNextBtn.addEventListener('click', () => {
+            const totalPages = Math.max(1, Math.ceil(allHistoryRows.length / HISTORY_PAGE_SIZE));
+            if (currentHistoryPage >= totalPages) {
+                return;
+            }
+            currentHistoryPage += 1;
+            renderHistoryPage();
+        });
+
+        for (const button of tabButtons) {
+            button.addEventListener('click', () => {
+                setActiveTab(button.dataset.tabTarget);
+            });
+        }
+
         document.getElementById('retrainForm').addEventListener('submit', async (event) => {
             event.preventDefault();
 
@@ -821,6 +1181,7 @@
             retrainBtn.disabled = true;
             retrainBtn.textContent = 'Starting Retraining...';
             resultDiv.style.display = 'none';
+            stopRetrainPolling();
 
             try {
                 const formData = new FormData(event.target);
@@ -830,22 +1191,16 @@
                     force_replacement: document.getElementById('forceReplacement').checked,
                 };
 
-                const data = await postJson('/api/v1/retrain', retrainData);
-
+                const data = await postJson('/api/v1/retrain/jobs', retrainData);
                 resultDiv.className = 'result success';
-                resultDiv.innerHTML = `
-                    <strong>Retraining Status:</strong> ${data.status}<br>
-                    <strong>Model URI:</strong> ${data.model_uri}<br>
-                    ${data.cv_mean_auc ? `<strong>CV Mean AUC:</strong> ${data.cv_mean_auc}<br>` : ''}
-                    ${data.message ? `<strong>Message:</strong> ${data.message}` : ''}
-                `;
+                resultDiv.innerHTML = `<strong>Retraining job started:</strong> ${data.job_id}<br><strong>Status:</strong> ${data.status}`;
                 resultDiv.style.display = 'block';
-                await loadHistory();
+                retrainBtn.textContent = 'Training In Progress...';
+                await pollRetrainJob(data.job_id, resultDiv, retrainBtn);
             } catch (error) {
                 resultDiv.className = 'result error';
                 resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
                 resultDiv.style.display = 'block';
-            } finally {
                 retrainBtn.disabled = false;
                 retrainBtn.textContent = 'Start Retraining';
             }

@@ -280,6 +280,65 @@
             color: #74879a;
         }
 
+        .drift-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .drift-card-group-label {
+            flex: 0 0 100%;
+            font-size: 0.74rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #74879a;
+            margin-top: 8px;
+        }
+
+        .drift-card-group-label:first-child {
+            margin-top: 0;
+        }
+
+        .drift-card {
+            background: #f4f8fb;
+            border: 1px solid #e1e7ef;
+            border-left: 3px solid #d3dce6;
+            border-radius: 8px;
+            padding: 8px 12px;
+            min-width: 100px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .drift-card.status-stable { border-left-color: #27ae60; }
+        .drift-card.status-drifted { border-left-color: #e74c3c; }
+        .drift-card.status-insufficient_data,
+        .drift-card.status-baseline_unavailable { border-left-color: #bdc3c7; }
+
+        .drift-card-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #74879a;
+        }
+
+        .drift-card-value {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #243043;
+        }
+
+        .drift-card-value--small {
+            font-size: 0.78rem;
+            font-weight: 400;
+            word-break: break-all;
+            color: #4a6175;
+        }
+
         .tab-shell {
             background: white;
             border-radius: 10px;
@@ -549,9 +608,7 @@
         <div id="monitoringTabPanel" class="tab-panel" role="tabpanel" aria-labelledby="monitoringTabButton">
             <div class="section">
                 <h2>Prediction Drift Session</h2>
-                <div class="history-meta">
-                    <span id="driftSummary" class="muted">Loading drift report...</span>
-                </div>
+                <div id="driftSummary"><span class="muted">Loading drift report...</span></div>
                 <div class="table-wrapper">
                     <table>
                         <thead>
@@ -611,10 +668,12 @@
         const driftSummary = document.getElementById('driftSummary');
         const driftTableBody = document.getElementById('driftTableBody');
         const HISTORY_PAGE_SIZE = 10;
+        const RETRAIN_POLL_INTERVAL_MS = 1200;
         let currentActiveModelUri = null;
         let hasInitializedModelFilter = false;
         let allHistoryRows = [];
         let currentHistoryPage = 1;
+        let retrainPollTimer = null;
         let appConfig = {
             risk_levels_pct: {
                 low: 20,
@@ -820,7 +879,7 @@
             try {
                 await loadDrift();
             } catch (error) {
-                driftSummary.textContent = `Failed to load drift: ${error.message}`;
+                driftSummary.innerHTML = `<span class="muted">Failed to load drift: ${error.message}</span>`;
                 driftTableBody.innerHTML = '<tr><td colspan="7" class="muted">Drift data unavailable for this model yet.</td></tr>';
             }
         }
@@ -848,27 +907,60 @@
             }).join('');
         }
 
+        function renderDriftCards(data) {
+            const perf = data.performance_summary || {};
+            const baseline = perf.baseline || null;
+            const statusClass = String(data.overall_status || '').toLowerCase();
+
+            function fmtPct(v) {
+                return v === null || v === undefined ? '\u2014' : `${(Number(v) * 100).toFixed(1)}%`;
+            }
+            function fmtNum(v, dec = 4) {
+                return v === null || v === undefined ? '\u2014' : Number(v).toFixed(dec);
+            }
+            function card(label, value, extra = '', small = false) {
+                return `<div class="drift-card ${extra}"><div class="drift-card-label">${label}</div><div class="drift-card-value${small ? ' drift-card-value--small' : ''}">${value}</div></div>`;
+            }
+            function groupLabel(text) {
+                return `<div class="drift-card-group-label">${text}</div>`;
+            }
+
+            let html = '<div class="drift-cards">';
+
+            html += groupLabel('Session');
+            html += card('Overall Status', data.overall_status || '\u2014', `status-${statusClass}`);
+            html += card('Samples', `${data.sample_size} / ${data.min_predictions_required}`);
+            html += card('Mean Risk', fmtPct(perf.mean_probability));
+            html += card('High Risk', perf.high_risk_pct === null || perf.high_risk_pct === undefined ? '\u2014' : `${Number(perf.high_risk_pct).toFixed(1)}%`);
+
+            html += groupLabel('Model');
+            html += card('Version', `v${data.model_version}`);
+            html += card('URI', data.model_uri || '\u2014', '', true);
+
+            if (baseline) {
+                html += groupLabel('Training Baseline');
+                html += card('Train Samples', baseline.n_samples !== undefined && baseline.n_samples !== null ? String(baseline.n_samples) : '\u2014');
+                html += card('CV AUC', fmtNum(baseline.cv_mean_auc));
+                html += card('Test ROC-AUC', fmtNum(baseline.test_roc_auc));
+                html += card('Positive Class', fmtPct(baseline.positive_class_proportion));
+            }
+
+            html += '</div>';
+
+            if (!data.has_enough_data) {
+                html += `<p class="muted" style="font-size:0.88rem;margin-bottom:12px;">Need at least ${data.min_predictions_required} predictions to evaluate drift.</p>`;
+            }
+
+            driftSummary.innerHTML = html;
+        }
+
         async function loadDrift() {
             const selectedVersion = modelFilter.value || null;
             const query = selectedVersion ? `?model_version=${encodeURIComponent(selectedVersion)}` : '';
             const data = await getJson(`/api/v1/predictions/drift${query}`);
 
             renderDriftTable(data.features);
-
-            const perf = data.performance_summary || {};
-            const meanProbability = perf.mean_probability === null || perf.mean_probability === undefined
-                ? '-'
-                : `${(Number(perf.mean_probability) * 100).toFixed(1)}%`;
-            const highRiskPct = perf.high_risk_pct === null || perf.high_risk_pct === undefined
-                ? '-'
-                : `${Number(perf.high_risk_pct).toFixed(1)}%`;
-
-            const sampleText = `${data.sample_size}/${data.min_predictions_required}`;
-            driftSummary.textContent = `Model v${data.model_version} | Status: ${data.overall_status} | Samples: ${sampleText} | Mean risk: ${meanProbability} | High risk: ${highRiskPct}`;
-
-            if (!data.has_enough_data) {
-                driftSummary.textContent += ` | Need at least ${data.min_predictions_required} predictions to evaluate drift.`;
-            }
+            renderDriftCards(data);
         }
 
         async function loadConfig() {
@@ -877,6 +969,75 @@
             } catch (error) {
                 // Keep fallback defaults if config endpoint is unavailable.
             }
+        }
+
+        function stopRetrainPolling() {
+            if (retrainPollTimer !== null) {
+                clearInterval(retrainPollTimer);
+                retrainPollTimer = null;
+            }
+        }
+
+        function renderRetrainProgress(resultDiv, status) {
+            const elapsed = Number(status.elapsed_seconds || 0).toFixed(1);
+            const progress = Number(status.progress_pct || 0);
+            resultDiv.className = 'result success';
+            resultDiv.innerHTML = `
+                <strong>Retraining Status:</strong> ${status.status}<br>
+                <strong>Stage:</strong> ${status.stage}<br>
+                <strong>Progress:</strong> ${progress}%<br>
+                <strong>Elapsed:</strong> ${elapsed}s<br>
+                <strong>Details:</strong> ${status.message}
+            `;
+            resultDiv.style.display = 'block';
+        }
+
+        async function pollRetrainJob(jobId, resultDiv, retrainBtn) {
+            const update = async () => {
+                const status = await getJson(`/api/v1/retrain/jobs/${encodeURIComponent(jobId)}`);
+
+                if (status.status === 'completed') {
+                    stopRetrainPolling();
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `
+                        <strong>Retraining Status:</strong> ${status.status}<br>
+                        <strong>Model URI:</strong> ${status.model_uri || '-'}<br>
+                        ${status.cv_mean_auc !== null && status.cv_mean_auc !== undefined ? `<strong>CV Mean AUC:</strong> ${status.cv_mean_auc}<br>` : ''}
+                        <strong>Message:</strong> ${status.message}
+                    `;
+                    resultDiv.style.display = 'block';
+                    retrainBtn.disabled = false;
+                    retrainBtn.textContent = 'Start Retraining';
+                    await loadHistory();
+                    return;
+                }
+
+                if (status.status === 'failed') {
+                    stopRetrainPolling();
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `<strong>Training failed:</strong> ${status.error || status.message}`;
+                    resultDiv.style.display = 'block';
+                    retrainBtn.disabled = false;
+                    retrainBtn.textContent = 'Start Retraining';
+                    return;
+                }
+
+                renderRetrainProgress(resultDiv, status);
+            };
+
+            await update();
+            retrainPollTimer = setInterval(async () => {
+                try {
+                    await update();
+                } catch (error) {
+                    stopRetrainPolling();
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `<strong>Error while polling training progress:</strong> ${error.message}`;
+                    resultDiv.style.display = 'block';
+                    retrainBtn.disabled = false;
+                    retrainBtn.textContent = 'Start Retraining';
+                }
+            }, RETRAIN_POLL_INTERVAL_MS);
         }
 
         function renderPredictionResponse(resultDiv, response) {
@@ -1013,6 +1174,7 @@
             retrainBtn.disabled = true;
             retrainBtn.textContent = 'Starting Retraining...';
             resultDiv.style.display = 'none';
+            stopRetrainPolling();
 
             try {
                 const formData = new FormData(event.target);
@@ -1022,22 +1184,16 @@
                     force_replacement: document.getElementById('forceReplacement').checked,
                 };
 
-                const data = await postJson('/api/v1/retrain', retrainData);
-
+                const data = await postJson('/api/v1/retrain/jobs', retrainData);
                 resultDiv.className = 'result success';
-                resultDiv.innerHTML = `
-                    <strong>Retraining Status:</strong> ${data.status}<br>
-                    <strong>Model URI:</strong> ${data.model_uri}<br>
-                    ${data.cv_mean_auc ? `<strong>CV Mean AUC:</strong> ${data.cv_mean_auc}<br>` : ''}
-                    ${data.message ? `<strong>Message:</strong> ${data.message}` : ''}
-                `;
+                resultDiv.innerHTML = `<strong>Retraining job started:</strong> ${data.job_id}<br><strong>Status:</strong> ${data.status}`;
                 resultDiv.style.display = 'block';
-                await loadHistory();
+                retrainBtn.textContent = 'Training In Progress...';
+                await pollRetrainJob(data.job_id, resultDiv, retrainBtn);
             } catch (error) {
                 resultDiv.className = 'result error';
                 resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
                 resultDiv.style.display = 'block';
-            } finally {
                 retrainBtn.disabled = false;
                 retrainBtn.textContent = 'Start Retraining';
             }

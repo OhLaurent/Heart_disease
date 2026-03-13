@@ -14,6 +14,7 @@ from heart_disease.constants import (
 )
 from heart_disease.api.drift_monitor import drift_report_for_model
 from heart_disease.api.prediction_store import PredictionStore
+from heart_disease.api.retrain_jobs import RetrainJobManager
 from heart_disease.api.schemas import (
     AppConfigResponse,
     PredictionDriftResponse,
@@ -24,6 +25,8 @@ from heart_disease.api.schemas import (
     PredictionRequest,
     PredictionResult,
     PredictionResponse,
+    RetrainJobStartResponse,
+    RetrainJobStatusResponse,
     RetrainRequest,
     RetrainResponse,
 )
@@ -35,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 prediction_store = PredictionStore()
+retrain_job_manager = RetrainJobManager()
 
 # === Auxiliary functions ===
 def _request_to_dataframe(patient_data: list[PatientData]) -> pd.DataFrame:
@@ -285,5 +289,39 @@ async def retrain(body: RetrainRequest, request: Request) -> RetrainResponse:
             status_code=500,
             detail=f"Model training failed: {str(e)}"
         )
+
+
+@router.post(
+        "/retrain/jobs",
+        response_model=RetrainJobStartResponse,
+        tags=["Retraining"],
+        summary="Start retraining in background and return a job id",)
+async def retrain_start_job(body: RetrainRequest, request: Request) -> RetrainJobStartResponse:
+    """Create an async retraining job so the UI can poll progress."""
+    logger.info(
+        f"Received async retrain request from {request.client.host} "
+        f"with n_iter={body.n_iter}, cv_splits={body.cv_splits}, "
+        f"force_replacement={body.force_replacement}"
+    )
+
+    payload = retrain_job_manager.start_job(
+        n_iter=body.n_iter,
+        cv_splits=body.cv_splits,
+        force_replacement=body.force_replacement,
+    )
+    return RetrainJobStartResponse(**payload)
+
+
+@router.get(
+        "/retrain/jobs/{job_id}",
+        response_model=RetrainJobStatusResponse,
+        tags=["Retraining"],
+        summary="Get retraining job progress/status",)
+async def retrain_job_status(job_id: str) -> RetrainJobStatusResponse:
+    """Return current status for a background retraining job."""
+    payload = retrain_job_manager.get_job(job_id)
+    if payload is None:
+        raise HTTPException(status_code=404, detail=f"Retraining job '{job_id}' not found")
+    return RetrainJobStatusResponse(**payload)
 
 

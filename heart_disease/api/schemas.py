@@ -121,3 +121,26 @@ class RetrainResponse(BaseModel):
     model_uri: str
     cv_mean_auc: float | None = None
     message: str | None = None
+
+
+class RetrainJobStartResponse(BaseModel):
+    """Response returned when an async retrain job is started."""
+    job_id: str
+    status: str
+    message: str
+
+
+class RetrainJobStatusResponse(BaseModel):
+    """Live status for an async retrain job."""
+    job_id: str
+    status: str
+    stage: str
+    progress_pct: int = Field(..., ge=0, le=100)
+    message: str
+    started_at: str
+    updated_at: str
+    finished_at: str | None = None
+    elapsed_seconds: float
+    model_uri: str | None = None
+    cv_mean_auc: float | None = None
+    error: str | None = None

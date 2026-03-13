@@ -445,3 +445,67 @@ class TestRetrainEndpoint:
         })
         
         assert response.status_code == 422  # Validation error
+
+    @patch('heart_disease.api.routes.retrain_job_manager')
+    def test_retrain_start_job(self, mock_job_manager):
+        """Test async retrain job creation endpoint."""
+        mock_job_manager.start_job.return_value = {
+            'job_id': 'job-123',
+            'status': 'queued',
+            'message': 'Retraining started. Check job status for progress.',
+        }
+
+        client = TestClient(app)
+        response = client.post('/api/v1/retrain/jobs', json={
+            'n_iter': 20,
+            'cv_splits': 5,
+            'force_replacement': False,
+        })
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload['job_id'] == 'job-123'
+        assert payload['status'] == 'queued'
+        mock_job_manager.start_job.assert_called_once_with(
+            n_iter=20,
+            cv_splits=5,
+            force_replacement=False,
+        )
+
+    @patch('heart_disease.api.routes.retrain_job_manager')
+    def test_retrain_job_status(self, mock_job_manager):
+        """Test async retrain job status endpoint."""
+        mock_job_manager.get_job.return_value = {
+            'job_id': 'job-123',
+            'status': 'running',
+            'stage': 'hyperparameter_search',
+            'progress_pct': 65,
+            'message': 'Running hyperparameter search...',
+            'started_at': '2026-03-13T12:00:00+00:00',
+            'updated_at': '2026-03-13T12:00:01+00:00',
+            'finished_at': None,
+            'elapsed_seconds': 1.25,
+            'model_uri': None,
+            'cv_mean_auc': None,
+            'error': None,
+        }
+
+        client = TestClient(app)
+        response = client.get('/api/v1/retrain/jobs/job-123')
+
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload['status'] == 'running'
+        assert payload['progress_pct'] == 65
+        mock_job_manager.get_job.assert_called_once_with('job-123')
+
+    @patch('heart_disease.api.routes.retrain_job_manager')
+    def test_retrain_job_status_not_found(self, mock_job_manager):
+        """Test async retrain job status endpoint when job does not exist."""
+        mock_job_manager.get_job.return_value = None
+
+        client = TestClient(app)
+        response = client.get('/api/v1/retrain/jobs/missing-job')
+
+        assert response.status_code == 404
+        assert 'not found' in response.json()['detail']

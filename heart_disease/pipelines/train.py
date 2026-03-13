@@ -7,7 +7,8 @@ Organized as a class with modular, testable methods.
 from __future__ import annotations
 
 import warnings
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Callable
 
 import mlflow
 import pandas as pd
@@ -22,7 +23,8 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
-from sklearn.model_selection import RandomizedSearchCV, train_test_split
+from sklearn.base import clone
+from sklearn.model_selection import ParameterSampler, RandomizedSearchCV, StratifiedKFold, train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
@@ -48,6 +50,15 @@ from heart_disease.pipelines.components.dataset import DataLoader, DataValidator
 from heart_disease.pipelines.components.features import DataTransformer
 
 warnings.filterwarnings("ignore", category=UserWarning)
+
+
+@dataclass(slots=True)
+class SearchResult:
+    """Minimal search result payload compatible with current training flow."""
+
+    best_estimator_: Pipeline
+    best_score_: float
+    best_params_: dict[str, Any]
 
 
 def _configure_mlflow() -> None:
@@ -115,17 +126,23 @@ class TrainingPipeline:
         cv_folds: int = DEFAULT_CV_FOLDS,
         force_replace: bool = False,
         data_path: str | None = None,
+        progress_callback: Callable[[str, str, int], None] | None = None,
     ):
         self.n_iter = n_iter
         self.cv_folds = cv_folds
         self.force_replace = force_replace
         self.data_path = data_path or INPUT_FILE
+        self.progress_callback = progress_callback
 
         # Attributes populated during training
         self.model_: Pipeline | None = None
         self.metrics_: dict[str, float] | None = None
         self.run_id_: str | None = None
         self._best_params: dict[str, Any] | None = None
+
+    def _report_progress(self, stage: str, message: str, progress_pct: int) -> None:
+        if self.progress_callback is not None:
+            self.progress_callback(stage, message, progress_pct)
 
     # -----------------------------------------------------------------------
     # Data loading and preparation
@@ -235,7 +252,7 @@ class TrainingPipeline:
 
     def _tune_hyperparameters(
         self, pipeline: Pipeline, X_train: pd.DataFrame, y_train: pd.Series
-    ) -> RandomizedSearchCV:
+    ) -> RandomizedSearchCV | SearchResult:
         """Perform hyperparameter tuning with RandomizedSearchCV.
 
         Parameters
@@ -252,19 +269,67 @@ class TrainingPipeline:
         RandomizedSearchCV
             Fitted search object with best estimator.
         """
-        random_search = RandomizedSearchCV(
-            pipeline,
-            param_distributions=HYPERPARAMETER_GRID,
-            n_iter=self.n_iter,
-            cv=self.cv_folds,
-            scoring=SCORING_METRIC,
-            random_state=RANDOM_STATE,
-            n_jobs=N_JOBS,
-            verbose=1,
-        )
+        if self.progress_callback is None:
+            random_search = RandomizedSearchCV(
+                pipeline,
+                param_distributions=HYPERPARAMETER_GRID,
+                n_iter=self.n_iter,
+                cv=self.cv_folds,
+                scoring=SCORING_METRIC,
+                random_state=RANDOM_STATE,
+                n_jobs=N_JOBS,
+                verbose=1,
+            )
 
-        random_search.fit(X_train, y_train)
-        return random_search
+            random_search.fit(X_train, y_train)
+            return random_search
+
+        candidates = list(ParameterSampler(HYPERPARAMETER_GRID, n_iter=self.n_iter, random_state=RANDOM_STATE))
+        cv_splitter = StratifiedKFold(n_splits=self.cv_folds, shuffle=True, random_state=RANDOM_STATE)
+        total_fits = len(candidates) * self.cv_folds
+        fits_done = 0
+
+        best_score = float("-inf")
+        best_params: dict[str, Any] = {}
+        best_estimator: Pipeline | None = None
+
+        for params in candidates:
+            fold_scores: list[float] = []
+
+            for train_idx, valid_idx in cv_splitter.split(X_train, y_train):
+                fold_model = clone(pipeline)
+                fold_model.set_params(**params)
+
+                X_fold_train = X_train.iloc[train_idx]
+                y_fold_train = y_train.iloc[train_idx]
+                X_fold_valid = X_train.iloc[valid_idx]
+                y_fold_valid = y_train.iloc[valid_idx]
+
+                fold_model.fit(X_fold_train, y_fold_train)
+                fold_proba = fold_model.predict_proba(X_fold_valid)[:, 1]
+                fold_scores.append(float(roc_auc_score(y_fold_valid, fold_proba)))
+
+                fits_done += 1
+                progress = 50 + int((fits_done / total_fits) * 24)
+                self._report_progress(
+                    "hyperparameter_search",
+                    f"Running hyperparameter search... Fits: {fits_done}/{total_fits}",
+                    progress,
+                )
+
+            mean_score = float(np.mean(fold_scores))
+            if mean_score > best_score:
+                best_score = mean_score
+                best_params = params
+
+        best_estimator = clone(pipeline)
+        best_estimator.set_params(**best_params)
+
+        return SearchResult(
+            best_estimator_=best_estimator,
+            best_score_=best_score,
+            best_params_=best_params,
+        )
 
     # -----------------------------------------------------------------------
     # Model evaluation
@@ -463,7 +528,7 @@ class TrainingPipeline:
     def _calculate_baseline_stats(
             self,
             X: pd.DataFrame, y: pd.Series,
-            search: RandomizedSearchCV) -> dict[str, float]:
+            search: RandomizedSearchCV | SearchResult) -> dict[str, float]:
         """Calculate baseline statistics for the dataset.
 
         Parameters
@@ -549,29 +614,39 @@ class TrainingPipeline:
         >>> print(f"Run ID: {results['run_id']}")
         >>> print(f"Promoted: {results['promoted']}")
         """
+        self._report_progress("configuring", "Configuring MLflow...", 10)
         _configure_mlflow()
 
         # Load and prepare data
+        self._report_progress("loading_data", "Loading and validating training data...", 20)
         df = self._load_and_validate_data()
+        self._report_progress("preprocessing", "Preparing features and target...", 32)
         X, y = self._prepare_features(df)
+        self._report_progress("splitting", "Creating train/test split...", 40)
         X_train, X_test, y_train, y_test = self._split_train_test(X, y)
 
         # Build and tune model
+        self._report_progress("building_model", "Building training pipeline...", 50)
         pipeline = self._create_ml_pipeline(X)
+        self._report_progress("hyperparameter_search", "Starting hyperparameter search...", 55)
         search = self._tune_hyperparameters(pipeline, X_train, y_train)
         best_model = search.best_estimator_
 
         # Retrain on full training set
+        self._report_progress("fitting", "Fitting best model...", 78)
         best_model.fit(X_train, y_train)
 
         # Evaluate
+        self._report_progress("evaluating", "Evaluating model performance...", 86)
         y_pred_proba = best_model.predict_proba(X_test)[:, 1]
         metrics = self._evaluate_model(best_model, X_test, y_test, search.best_score_)
 
         # Evaluate baseline stats
+        self._report_progress("baseline_stats", "Computing baseline statistics...", 92)
         baseline_stats = self._calculate_baseline_stats(X, y, search)
 
         # MLflow logging and promotion
+        self._report_progress("logging", "Logging model and metrics to MLflow...", 96)
         with mlflow.start_run() as run:
             # Prepare parameters to log
             params = {
@@ -591,6 +666,8 @@ class TrainingPipeline:
                 promoted = self._promote_model(run_id)
             else:
                 promoted = False
+
+        self._report_progress("completed", "Training completed.", 100)
 
         # Store results as instance attributes
         self.model_ = best_model
@@ -615,6 +692,7 @@ def train_pipeline(
     n_iter: int = DEFAULT_N_ITER,
     cv_folds: int = DEFAULT_CV_FOLDS,
     force_replace: bool = False,
+    progress_callback: Callable[[str, str, int], None] | None = None,
 ) -> dict[str, Any]:
     """Run the complete training pipeline with MLflow tracking.
 
@@ -646,5 +724,10 @@ def train_pipeline(
     >>> results = train_pipeline(n_iter=100, cv_folds=10)
     >>> print(f"ROC-AUC: {results['metrics']['test_roc_auc']:.4f}")
     """
-    pipeline = TrainingPipeline(n_iter=n_iter, cv_folds=cv_folds, force_replace=force_replace)
+    pipeline = TrainingPipeline(
+        n_iter=n_iter,
+        cv_folds=cv_folds,
+        force_replace=force_replace,
+        progress_callback=progress_callback,
+    )
     return pipeline.run()

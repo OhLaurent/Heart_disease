@@ -6,6 +6,7 @@ the current working directory.
 """
 
 from pathlib import Path
+import os
 
 import numpy as np
 
@@ -87,7 +88,10 @@ PREDICTIONS_DB_PATH: Path = REPO_DIR / "predictions.db"
 
 # MLflow
 MLFLOW_TRACKING_DB_PATH: Path = REPO_DIR / "mlflow.db"
-MLFLOW_TRACKING_URI: str = f"sqlite:///{MLFLOW_TRACKING_DB_PATH.resolve().as_posix()}"
+MLFLOW_TRACKING_URI: str = os.getenv(
+    "MLFLOW_TRACKING_URI",
+    f"sqlite:///{MLFLOW_TRACKING_DB_PATH.resolve().as_posix()}",
+)
 MLFLOW_EXPERIMENT_NAME: str = "heart_disease"
 MLFLOW_MODEL_NAME: str = "heart_disease_model"
 MLFLOW_ARTIFACT_PATH: str = "model"

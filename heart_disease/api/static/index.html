@@ -750,7 +750,7 @@
             });
 
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw await buildHttpError(response);
             }
 
             return response.json();
@@ -759,9 +759,50 @@
         async function getJson(url) {
             const response = await fetch(url);
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                throw await buildHttpError(response);
             }
             return response.json();
+        }
+
+        async function buildHttpError(response) {
+            let detail = `Request failed (HTTP ${response.status})`;
+
+            try {
+                const payload = await response.json();
+                if (typeof payload?.detail === 'string' && payload.detail.trim()) {
+                    detail = payload.detail.trim();
+                }
+            } catch (_) {
+                // Ignore JSON parsing issues and keep a generic fallback.
+            }
+
+            const error = new Error(detail);
+            error.status = response.status;
+            return error;
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        function buildFriendlyErrorMessage(error) {
+            const status = Number(error?.status || 0);
+            const message = String(error?.message || 'Unexpected error').trim();
+
+            if (status === 503 && message.includes('No trained model is available')) {
+                return `
+                    <strong>No active model available yet.</strong><br>
+                    To start making predictions, train a model in the <strong>Retraining</strong> tab and wait for the job to complete.<br>
+                    After that, come back to this tab and try again.
+                `;
+            }
+
+            return `<strong>Erro:</strong> ${escapeHtml(message)}`;
         }
 
         function setActiveTab(targetId) {
@@ -1105,7 +1146,7 @@
                 await loadHistory();
             } catch (error) {
                 resultDiv.className = 'result error';
-                resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+                resultDiv.innerHTML = buildFriendlyErrorMessage(error);
                 resultDiv.style.display = 'block';
             } finally {
                 predictBtn.disabled = false;
@@ -1136,7 +1177,7 @@
                 await loadHistory();
             } catch (error) {
                 resultDiv.className = 'result error';
-                resultDiv.innerHTML = `<strong>Error:</strong> ${error.message}`;
+                resultDiv.innerHTML = buildFriendlyErrorMessage(error);
                 resultDiv.style.display = 'block';
             } finally {
                 batchBtn.disabled = false;

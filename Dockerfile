@@ -1,7 +1,8 @@
 FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    MLFLOW_TRACKING_URI=sqlite:////app/mlflow.db
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential gcc \
@@ -14,6 +15,11 @@ COPY . /app
 
 RUN python -m pip install --upgrade pip setuptools wheel \
     && pip install --no-cache-dir ".[dev]"
+
+RUN mkdir -p /app/mlruns \
+    && touch /app/mlflow.db /app/predictions.db \
+    && chmod 777 /app/mlruns \
+    && chmod 666 /app/mlflow.db /app/predictions.db
 
 RUN chmod +x /app/scripts/docker-entrypoint.sh || true
 

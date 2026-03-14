@@ -199,8 +199,8 @@ class TestPredictEndpoint:
             ]
         })
         
-        assert response.status_code == 400
-        assert "No model found with alias 'active'" in response.json()['detail']
+        assert response.status_code == 503
+        assert "No trained model is available" in response.json()['detail']
 
     def test_predict_with_invalid_data(self):
         """Test prediction with invalid patient data."""

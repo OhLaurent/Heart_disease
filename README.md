@@ -1,349 +1,343 @@
-# Heart Disease Prediction
+# Heart Disease Prediction — ML Engineering & Data Science Portfolio
 
-Pipeline de machine learning para predição de doença cardíaca usando regressão logística com rastreamento MLflow.
+End-to-end portfolio project covering the full lifecycle of a predictive model for cardiovascular risk: from data validation and exploratory analysis to a production-ready REST API with drift monitoring, model versioning, and continuous integration.
 
-## Estrutura do Projeto
+> **Note:** Exploratory data analysis (EDA) and model experimentation were done in a separate repository:
+> [github.com/OhLaurent/Heart_disease](https://github.com/OhLaurent/Heart_disease).
+> This repository focuses on taking the best model from that exploration and deploying it as a maintainable, observable, and reproducible system.
+
+---
+
+## 1) What this project demonstrates
+
+From a **Data Science** perspective:
+- Feature engineering shared between training and inference (no leakage).
+- Hyperparameter tuning with `RandomizedSearchCV` and proper train/validation/test splits.
+- Model evaluation with `ROC-AUC` as the promotion criterion.
+- Drift detection comparing production distributions vs. training baseline (KS test for numerical, TV distance for categorical).
+
+From an **ML Engineering** perspective:
+- Explicit data contract (`config/schema.yaml`) validated by Pandera (pipeline) + Pydantic (API boundary).
+- MLflow experiment tracking, model registry, and alias-based promotion (`active`).
+- FastAPI serving layer with prediction history persisted in SQLite for audit and observability.
+- Async retraining endpoint with job status tracking.
+- Reproducible environment via Docker + `uv`, and CI with GitHub Actions.
+
+---
+
+## 2) Dataset
+
+The dataset contains **270 patient records** with 13 clinical features and a binary target.
+
+**Raw data sample (`data/raw/heart_disease.csv`):**
+
+| id | Age | Sex | Chest pain type | BP  | Cholesterol | FBS over 120 | EKG results | Max HR | Exercise angina | ST depression | Slope of ST | Number of vessels fluro | Thallium | Heart Disease |
+|----|-----|-----|-----------------|-----|-------------|--------------|-------------|--------|-----------------|---------------|-------------|-------------------------|----------|---------------|
+| 0  | 58  | 1   | 4               | 152 | 239         | 0            | 0           | 158    | 1               | 3.6           | 2           | 2                       | 7        | Presence      |
+| 1  | 52  | 1   | 1               | 125 | 325         | 0            | 2           | 171    | 0               | 0.0           | 1           | 0                       | 3        | Absence       |
+| 2  | 56  | 0   | 2               | 160 | 188         | 0            | 2           | 151    | 0               | 0.0           | 1           | 0                       | 3        | Absence       |
+
+**Feature descriptions:**
+
+| Feature | Type | Valid values | Description |
+|---|---|---|---|
+| `Age` | int | 1 – 120 | Patient age in years |
+| `Sex` | int | 0, 1 | Biological sex (1=male, 0=female) |
+| `Chest pain type` | int | 1, 2, 3, 4 | 1=typical angina, 2=atypical, 3=non-anginal, 4=asymptomatic |
+| `BP` | int | 50 – 300 | Resting blood pressure (mmHg) |
+| `Cholesterol` | int | 100 – 700 | Serum cholesterol (mg/dL) |
+| `FBS over 120` | bool | true/false | Fasting blood sugar > 120 mg/dL |
+| `EKG results` | int | 0, 1, 2 | 0=normal, 1=ST-T wave abnormality, 2=LV hypertrophy |
+| `Max HR` | int | 40 – 250 | Max heart rate achieved during exercise test (bpm) |
+| `Exercise angina` | int | 0, 1 | Exercise-induced angina (1=yes, 0=no) |
+| `ST depression` | float | 0.0 – 10.0 | ST depression (exercise vs. rest) |
+| `Slope of ST` | int | 1, 2, 3 | Slope of peak exercise ST segment (1=up, 2=flat, 3=down) |
+| `Number of vessels fluro` | int | 0 – 3 | Major vessels coloured by fluoroscopy |
+| `Thallium` | int | 3, 6, 7 | Thallium stress test (3=normal, 6=fixed defect, 7=reversible defect) |
+| `Heart Disease` | str | Presence / Absence | **Target** — only in training data, never in inference input |
+
+---
+
+## 3) Architecture
+
+```
+Client / Web UI  →  FastAPI (/api/v1/*)
+                        │
+                        ├── PredictionPipeline  →  MLflow Registry (alias: active)
+                        ├── PredictionStore     →  SQLite (predictions.db)
+                        ├── DriftMonitor        →  baseline_stats.json (MLflow artifact)
+                        └── TrainingPipeline    →  sklearn + RandomizedSearchCV + MLflow
+```
+
+---
+
+## 4) Repository structure
 
 ```
 heart_disease/
-├── data/raw/                 # Dados brutos
-├── config/                   # Schemas de validação
-├── heart_disease/           
-│   ├── constants.py         # Constantes e configurações do projeto
-│   ├── api/                 # API FastAPI
-│   └── pipelines/           
-│       ├── train.py         # TrainingPipeline class
-│       ├── predict.py       # PredictionPipeline class
-│       └── components/      
-│           ├── dataset.py   # Carregamento e validação de dados
-│           └── features.py  # Transformação de features
+    api/
+        app.py                # application factory + lifespan
+        routes.py             # REST endpoints
+        prediction_store.py   # inference history in SQLite
+        drift_monitor.py      # drift metrics vs. baseline
+        retrain_jobs.py       # async retraining jobs
+        schemas.py            # Pydantic contracts
+        static/index.html     # web UI for manual testing
+    pipelines/
+        train.py              # training, evaluation, MLflow logging, promotion
+        predict.py            # inference with the active model
+        components/
+            dataset.py        # data loading + schema validation
+            features.py       # feature transforms and X/y split
+config/
+    schema.yaml               # single source of truth for the data contract
+data/
+    raw/heart_disease.csv     # raw dataset (270 records, 13 features + target)
+tests/                        # unit + integration tests
+.github/workflows/ci.yml      # CI: test → Docker build
+Dockerfile
+docker-compose.yml
 ```
 
-## Instalação
+---
+
+## 5) API Endpoints
+
+Base URL: `http://localhost:8000`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/predict` | Predict heart disease risk for one or more patients |
+| GET | `/api/v1/predictions/history` | Persisted inference history (filterable by model version) |
+| GET | `/api/v1/predictions/drift` | Drift report vs. training baseline |
+| GET | `/api/v1/config` | Expose thresholds and constants to the frontend |
+| POST | `/api/v1/retrain` | Synchronous retraining |
+| POST | `/api/v1/retrain/jobs` | Start an async retraining job |
+| GET | `/api/v1/retrain/jobs/{job_id}` | Check async job progress |
+
+---
+
+## 6) Local setup
+
+### 6.1) Install dependencies with uv
 
 ```bash
-pip install -e .
+uv sync --extra dev
 ```
 
-## Pipeline de Treinamento
-
-A pipeline de treinamento é implementada como a classe **`TrainingPipeline`** com métodos modulares e testáveis.
-
-### Uso Básico
-
-```python
-from heart_disease.pipelines.train import TrainingPipeline
-
-# Instanciar e executar
-pipeline = TrainingPipeline()
-results = pipeline.run()
-
-# Acessar resultados
-print(f"Run ID: {results['run_id']}")
-print(f"ROC-AUC: {results['metrics']['test_roc_auc']:.4f}")
-print(f"Modelo promovido: {results['promoted']}")
-
-# Acessar atributos da pipeline após treinamento
-print(f"Modelo treinado: {pipeline.model_}")
-print(f"Métricas: {pipeline.metrics_}")
-print(f"MLflow Run ID: {pipeline.run_id_}")
-```
-
-### Parâmetros de Configuração
-
-```python
-# Com parâmetros customizados
-pipeline = TrainingPipeline(
-    n_iter=100,           # Iterações de busca aleatória
-    cv_folds=10,          # Folds de validação cruzada
-    force_replace=True,   # Forçar substituição do modelo ativo
-    data_path='custom/path/to/data.csv'  # Caminho customizado de dados
-)
-results = pipeline.run()
-```
-
-### Arquitetura da Classe
-
-**`TrainingPipeline`** organiza o workflow em métodos privados:
-
-**Preparação de Dados:**
-- `_load_and_validate_data()` - Carrega e valida dados
-- `_prepare_features()` - Transforma e separa features/target
-- `_split_train_test()` - Split estratificado
-
-**Modelagem:**
-- `_create_ml_pipeline()` - Cria pipeline sklearn
-- `_tune_hyperparameters()` - Busca aleatória de hiperparâmetros
-- `_evaluate_model()` - Calcula métricas
-
-**MLflow:**
-- `_log_to_mlflow()` - Registra modelo e métricas
-- `_get_active_model_metric()` - Obtém métrica do modelo ativo
-- `_should_promote_model()` - Decide sobre promoção
-- `_promote_model()` - Promove modelo para "active"
-
-**Orquestração:**
-- `run()` - Método público que coordena todo o fluxo
-
-### Atributos da Instância
-
-Após executar `run()`, os seguintes atributos ficam disponíveis:
-
-- `model_`: Pipeline sklearn treinado
-- `metrics_`: Dicionário com métricas de avaliação
-- `run_id_`: MLflow run ID
-
-### Função de Compatibilidade
-
-Para compatibilidade com código existente, a função `train_pipeline()` continua disponível:
-
-```python
-from heart_disease.pipelines.train import train_pipeline
-
-# Uso funcional (cria e executa TrainingPipeline internamente)
-results = train_pipeline(n_iter=100, cv_folds=10, force_replace=False)
-```
-
-### Testando Componentes Individuais
-
-```python
-from heart_disease.pipelines.train import TrainingPipeline
-
-# Criar instância
-pipeline = TrainingPipeline(n_iter=50, cv_folds=5)
-
-# Testar métodos individuais (útil para testes unitários)
-df = pipeline._load_and_validate_data()
-X, y = pipeline._prepare_features(df)
-ml_pipeline = pipeline._create_ml_pipeline(X)
-
-# Ou executar o workflow completo
-results = pipeline.run()
-```
-
-## Configuração
-
-Todas as configurações estão centralizadas em [`heart_disease/constants.py`](heart_disease/constants.py):
-
-- **Caminhos**: diretórios de dados e arquivos
-- **Colunas**: features numéricas, categóricas, target
-- **Modelagem**: random_state, test_size, cv_splits
-- **MLflow**: model_name, artifact_path, alias
-- **Hiperparâmetros**: grid de busca para regressão logística
-- **Defaults**: n_iter, cv_folds, scoring_metric, n_jobs
-
-## MLflow Tracking
-
-A pipeline registra automaticamente:
-
-- **Parâmetros**: configurações de treinamento e melhores hiperparâmetros
-- **Métricas**: accuracy, precision, recall, F1, ROC-AUC (CV e teste)
-- **Modelo**: pipeline sklearn completo com assinatura de entrada/saída
-- **Registro**: modelos versionados com alias "active" para produção
-
-### Visualizar Experimentos
+### 6.2) Start the MLflow tracking server
 
 ```bash
-mlflow ui
+uv run mlflow server \
+  --backend-store-uri sqlite:///mlflow.db \
+  --default-artifact-root ./mlruns \
+  --host 127.0.0.1 --port 5000
 ```
 
-Acesse http://localhost:5000 para visualizar experimentos, comparar modelos e gerenciar o registro.
+### 6.3) Start the API
 
-## Gestão de Modelos
-
-O modelo treinado é automaticamente promovido para "active" se:
-
-1. **Melhor performance**: ROC-AUC no teste > modelo ativo atual, OU
-2. **Forçar substituição**: `force_replace=True`
-
-O modelo com alias "active" é usado pela API de produção para inferência.
-
-## Pipeline de Predição
-
-A pipeline de predição carrega o modelo ativo do MLflow e faz predições para novos pacientes. Reutiliza os componentes de validação e transformação de dados.
-
-### Uso Básico
-
-**Predições a partir de DataFrame:**
-
-```python
-from heart_disease.pipelines.predict import PredictionPipeline
-import pandas as pd
-
-# Criar dados de exemplo
-patients = pd.DataFrame({
-    'id': [1, 2],
-    'Age': [55, 62],
-    'Sex': [1, 0],  # 1=male, 0=female
-    'Chest pain type': [2, 3],
-    'BP': [130, 140],
-    'Cholesterol': [240, 260],
-    'FBS over 120': [1, 1],
-    'EKG results': [0, 1],
-    'Max HR': [150, 135],
-    'Exercise angina': [0, 1],
-    'ST depression': [1.5, 2.0],
-    'Slope of ST': [2, 1],
-    'Number of vessels fluro': [1, 2],
-    'Thallium': [6, 7]
-})
-
-# Instanciar e carregar modelo
-pipeline = PredictionPipeline()
-pipeline.load_model()
-
-# Fazer predições
-results = pipeline.predict(patients)
-print(results[['id', 'Age', 'prediction']])
+**Linux/macOS:**
+```bash
+MLFLOW_TRACKING_URI=http://127.0.0.1:5000 \
+uv run uvicorn heart_disease.api.app:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Predições com probabilidades:**
-
-```python
-# Incluir probabilidades das classes
-results = pipeline.predict(patients, return_proba=True)
-print(results[['id', 'prediction', 'probability_Presence', 'probability_Absence']])
+**PowerShell:**
+```powershell
+$env:MLFLOW_TRACKING_URI = "http://127.0.0.1:5000"
+uv run uvicorn heart_disease.api.app:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Predições a partir de arquivo CSV:**
+Open:
+- Web UI: `http://localhost:8000/`
+- Swagger docs: `http://localhost:8000/docs`
 
-```python
-# Carregar e predizer de uma vez
-results = pipeline.predict_from_file(
-    'data/new_patients.csv',
-    return_proba=True
-)
+### 6.4) Run tests
+
+```bash
+uv run pytest -q
 ```
 
-### Função de Conveniência
+---
 
-Para predições rápidas sem instanciar a classe:
+## 7) Docker
 
-```python
-from heart_disease.pipelines.predict import predict_patients
+```bash
+# Build
+docker build -t heart-disease:latest .
 
-# De DataFrame
-results = predict_patients(patients_df, return_proba=True)
+# Run
+docker run --rm -p 8000:8000 heart-disease:latest
 
-# De arquivo CSV
-results = predict_patients('data/new_patients.csv', return_proba=True)
-
-# Sem incluir dados de entrada
-results = predict_patients(patients_df, include_input=False)
-
-# Usar modelo específico
-results = predict_patients(
-    patients_df,
-    model_name='heart_disease_model',
-    model_alias='champion'
-)
+# Or with Compose
+docker-compose up --build
 ```
 
-### Parâmetros da Pipeline
+The container starts without a pre-trained model. The API is immediately available; `/predict` returns `503` with an actionable message until you trigger a training run via the web UI or `POST /api/v1/retrain/jobs`.
 
-**`PredictionPipeline`:**
-- `model_name`: Nome do modelo no MLflow (default: do constants.py)
-- `model_alias`: Alias da versão (default: "active")
+---
 
-**Método `predict()`:**
-- `data`: DataFrame com dados dos pacientes
-- `return_proba`: Incluir probabilidades (default: False)
-- `include_input`: Incluir colunas originais (default: True)
+## 8) CI/CD (GitHub Actions)
 
-**Método `predict_from_file()`:**
-- `file_path`: Caminho para arquivo CSV
-- `return_proba`: Incluir probabilidades (default: False)
-- `include_input`: Incluir colunas originais (default: True)
+Workflow: `.github/workflows/ci.yml`
+Triggers: `push` and `pull_request` to `main`, `master`, `develop`.
 
-### Validação Automática
+- **`test` job:** Python 3.12 setup → install dependencies → `pytest -q`
+- **`build` job** (requires `test`): builds the Docker image to validate the `Dockerfile` is correct
 
-A pipeline aplica automaticamente:
+> The pipeline does **not** publish images (`push: false`). It is a build-validation CI, not a registry deployment.
 
-1. **Validação de schema**: Verifica se todas as features estão presentes e válidas
-2. **Modo inference**: Garante que o target não está presente nos dados
-3. **Transformação**: Aplica os mesmos mapeamentos binários e casting categórico do treinamento
-4. **Preparação**: Remove colunas desnecessárias (ID) antes da predição
+---
 
-### Formato de Saída
+## 9) API usage examples
 
-**Sem probabilidades (`return_proba=False`):**
-```python
-   id  Age  Sex  ...  prediction
-0   1   55    1  ...    Presence
-1   2   62    0  ...    Absence
+### 9.1) Single prediction
+
+**Request:**
+```json
+POST /api/v1/predict
+Content-Type: application/json
+
+{
+  "patient_data": [
+    {
+      "Age": 55,
+      "Sex": 1,
+      "Chest pain type": 4,
+      "BP": 152,
+      "Cholesterol": 239,
+      "FBS over 120": false,
+      "EKG results": 0,
+      "Max HR": 150,
+      "Exercise angina": 1,
+      "ST depression": 3.6,
+      "Slope of ST": 2,
+      "Number of vessels fluro": 2,
+      "Thallium": 7
+    }
+  ]
+}
 ```
 
-**Com probabilidades (`return_proba=True`):**
-```python
-   id  Age  Sex  ...  prediction  probability_Absence  probability_Presence
-0   1   55    1  ...    Presence              0.35                   0.65
-1   2   62    0  ...    Absence               0.72                   0.28
+**Response:**
+```json
+{
+  "predictions": [
+    {
+      "prediction": "Presence",
+      "probability": 0.87,
+      "model_version": "3"
+    }
+  ]
+}
 ```
 
-### Tratamento de Erros
+### 9.2) Start async retraining
 
-```python
-from heart_disease.pipelines.predict import PredictionPipeline
-
-pipeline = PredictionPipeline()
-
-try:
-    # Erro: modelo não carregado
-    results = pipeline.predict(data)
-except ValueError as e:
-    print(f"Erro: {e}")
-    pipeline.load_model()  # Carregar antes
-
-try:
-    # Erro: dados contêm target
-    results = pipeline.predict_from_file('data/with_target.csv')
-except ValueError as e:
-    print(f"Erro: {e}")
-
-try:
-    # Erro: modelo não existe
-    pipeline = PredictionPipeline(model_alias='nonexistent')
-    pipeline.load_model()
-except ValueError as e:
-    print(f"Erro: {e}")
+```bash
+curl -X POST "http://localhost:8000/api/v1/retrain/jobs" \
+  -H "Content-Type: application/json" \
+  -d '{"n_iter": 20, "cv_splits": 5, "force_replacement": false}'
 ```
 
-### Reutilização de Componentes
+### 9.3) Check retraining status
 
-A `PredictionPipeline` reutiliza os mesmos componentes do treinamento:
-
-- **`DataLoader`**: Carregamento de CSV
-- **`DataValidator`**: Validação em modo inference
-- **`DataTransformer`**: Transformação de features
-- **MLflow**: Carregamento do modelo ativo
-
-Isso garante **consistência** entre treinamento e inferência.
-
-## Testes
-
-A estrutura de classe facilita o teste unitário de cada componente:
-
-```python
-import pytest
-from heart_disease.pipelines.train import TrainingPipeline
-
-def test_load_and_validate_data():
-    pipeline = TrainingPipeline()
-    df = pipeline._load_and_validate_data()
-    assert len(df) > 0
-    assert "Heart Disease" in df.columns
-
-def test_prepare_features():
-    pipeline = TrainingPipeline()
-    df = pipeline._load_and_validate_data()
-    X, y = pipeline._prepare_features(df)
-    assert X.shape[0] == y.shape[0]
-    assert "id" not in X.columns
-
-def test_full_pipeline():
-    pipeline = TrainingPipeline(n_iter=10, cv_folds=3)
-    results = pipeline.run()
-    assert "run_id" in results
-    assert "metrics" in results
-    assert pipeline.model_ is not None
+```bash
+curl "http://localhost:8000/api/v1/retrain/jobs/<job_id>"
 ```
+
+---
+
+## 10) Data contract and governance
+
+All data validation flows from a single source of truth: `config/schema.yaml`.
+
+- **API boundary (Pydantic):** type and range checks on each incoming field before any computation.
+- **Pipeline boundary (Pandera):** schema enforcement on the DataFrame during training and inference, with separate modes (`training` vs `inference` — the target column is forbidden in inference mode).
+- Labels for the target column are mapped through central constants, eliminating the risk of train/inference inconsistency.
+
+---
+
+## 11) Drift monitoring
+
+After each training run, the pipeline saves `baseline_stats.json` as an MLflow artifact.
+
+The `/predictions/drift` endpoint compares recent production data (from `predictions.db`) against this baseline:
+
+- **Numerical features:** Kolmogorov–Smirnov test + summary statistics (mean, std, min, max).
+- **Categorical features:** Total Variation (TV) distance.
+- **Final status:** `stable`, `drifted`, or `insufficient_data`.
+
+---
+
+## 12) Testing
+
+The `tests/` suite covers:
+
+- FastAPI application creation and lifespan.
+- Schema and validation contracts.
+- Prediction flow and history persistence.
+- Drift and config endpoints.
+- Pipeline components (dataset loading, feature engineering, train, predict).
+
+```
+134 passed in ~4s
+```
+
+---
+
+## 13) Interface screenshots
+
+### Entry point
+
+The web UI makes it easy to demonstrate the end-to-end flow without needing a REST client. It confirms the project is not just a notebook — there is a working serving layer connected to the model registry.
+
+![UI Home](docs/screenshots/01-ui-home.png)
+
+### Prediction result
+
+A structured clinical input produces a prediction with probability, consuming the active model version registered in MLflow.
+
+![Prediction Result](docs/screenshots/02-ui-prediction-result.png)
+
+### Inference history
+
+Every prediction is persisted with its model version, input data, and output — enabling audit, debugging, and drift analysis.
+
+![Prediction History](docs/screenshots/03-ui-history.png)
+
+### Drift monitoring
+
+KS statistics for numerical features and TV distance for categorical ones, compared against the training baseline. Status: `stable`, `drifted`, or `insufficient_data`.
+
+![Drift Monitor](docs/screenshots/04-ui-drift.png)
+
+### Async retraining
+
+The async job flow with progress tracking shows the system supports continuous model operation, not just one-shot training.
+
+![Retraining Job](docs/screenshots/05-ui-retrain-job.png)
+
+### MLflow experiments
+
+Parameters, metrics, and artifacts logged centrally — enabling run comparison and reproducibility.
+
+![MLflow Experiment](docs/screenshots/06-mlflow-experiment.png)
+
+### Model registry and promotion
+
+The `active` alias marks the production version. Promotion is metric-driven (`test_roc_auc`) or forced via `force_replacement`.
+
+![Model Registry](docs/screenshots/07-mlflow-model-registry.png)
+
+### CI pipeline
+
+Automated test and build validation on every push — connecting ML work to software delivery discipline.
+
+![CI Pipeline](docs/screenshots/08-github-actions-ci.png)
+
+---
+
+## 14) Conclusion
+
+This project bridges data science and engineering: the model selection and feature analysis live in the [EDA repository](https://github.com/OhLaurent/Heart_disease), while this repository demonstrates what happens after a model is chosen — packaging it into a system that is observable, testable, versioned, and maintainable. Together, they cover the full journey from raw data exploration to a production-ready prediction service.
